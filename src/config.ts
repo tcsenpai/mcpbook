@@ -92,18 +92,6 @@ export function validateConfig(): void {
     throw new Error('GITBOOK_URL is required');
   }
 
-  if (!gitBookConfig.serverDescription || gitBookConfig.serverDescription.trim() === '') {
-    throw new Error('SERVER_DESCRIPTION is required');
-  }
-
-  if (!gitBookConfig.domainKeywords || gitBookConfig.domainKeywords.length === 0) {
-    throw new Error('DOMAIN_KEYWORDS must contain at least one keyword');
-  }
-
-  if (!gitBookConfig.serverName || gitBookConfig.serverName.trim() === '') {
-    throw new Error('SERVER_NAME is required');
-  }
-
   try {
     new URL(gitBookConfig.gitbookUrl);
   } catch (error) {

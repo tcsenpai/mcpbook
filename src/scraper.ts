@@ -135,10 +135,12 @@ export class GitBookScraper {
       const data = await fs.readFile(this.cacheFile, 'utf-8');
       const cached = JSON.parse(data);
       
-      // Check if cache is still valid
+      // Check if cache is still valid and has content
       const cacheAge = Date.now() - new Date(cached.timestamp).getTime();
       const cacheTtlMs = gitBookConfig.cacheTtlHours * 60 * 60 * 1000;
-      if (cacheAge < cacheTtlMs) {
+      const hasContent = cached.content && Object.keys(cached.content).length > 0;
+      
+      if (cacheAge < cacheTtlMs && hasContent) {
         this.content = cached.content;
         return true;
       }

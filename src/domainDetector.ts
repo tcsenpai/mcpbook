@@ -66,10 +66,10 @@ export class DomainDetector {
     }],
     
     // Generic blockchain patterns
-    [/blockchain|crypto|defi|web3/i, {
+    [/blockchain|crypto|defi|web3|solana|ethereum|polygon|avalanche|cardano|binance|validators?|nodes?|consensus|proof.of.stake|smart.contracts?|dapps?/i, {
       name: 'blockchain-docs',
       description: 'Blockchain and cryptocurrency documentation',
-      keywords: ['blockchain', 'crypto', 'defi', 'web3', 'smart-contracts'],
+      keywords: ['blockchain', 'crypto', 'defi', 'web3', 'smart-contracts', 'validators', 'nodes'],
       toolPrefix: 'blockchain_'
     }],
     
@@ -152,8 +152,11 @@ export class DomainDetector {
     // Get the most relevant keywords by frequency and position
     const topKeywords = this.rankKeywords(combinedKeywords, textSample);
     
+    // Generate tool prefix from domain info and keywords
+    const toolPrefix = this.generateToolPrefix(domainInfo, topKeywords, finalSiteName);
+    
     // Generate a smarter description using top keywords
-    const description = this.generateDescription(finalSiteName || 'Documentation', topKeywords);
+    const description = this.generateDescription(domainInfo, topKeywords, finalSiteName);
 
     return {
       name: finalSiteName || gitBookConfig.serverName,
@@ -161,7 +164,7 @@ export class DomainDetector {
       keywords: gitBookConfig.autoDetectKeywords 
         ? [...new Set([...topKeywords, ...gitBookConfig.domainKeywords])]
         : gitBookConfig.domainKeywords,
-      toolPrefix: gitBookConfig.toolPrefix
+      toolPrefix
     };
   }
 
@@ -256,16 +259,34 @@ export class DomainDetector {
     return technicalPatterns.some(pattern => pattern.test(word));
   }
   
-  private static generateDescription(siteName: string, keywords: string[]): string {
-    // Get the most relevant keywords for the description
-    const topKeywords = keywords.slice(0, 3);
+  private static generateToolPrefix(domainInfo: { domain: string; keywords: string[] } | null, keywords: string[], siteName: string | null): string {
+    // Use domain keywords first, then detected keywords, prioritizing non-generic terms
+    const sourceKeywords = domainInfo?.keywords || keywords;
     
-    // Generate a more natural description
-    const keywordPhrase = topKeywords.length > 1 
-      ? `${topKeywords.slice(0, -1).join(', ')} and ${topKeywords.slice(-1)}`
-      : topKeywords[0];
+    // Filter out generic terms and pick the most specific keyword
+    const genericTerms = ['docs', 'documentation', 'guide', 'manual', 'reference', 'api', 'www'];
+    const specificKeywords = sourceKeywords.filter(kw => !genericTerms.includes(kw.toLowerCase()));
+    const primaryKeyword = specificKeywords[0] || sourceKeywords[0] || 'docs';
     
-    return `${siteName} - Comprehensive documentation for ${keywordPhrase}`;
+    // Clean and format the primary keyword for tool prefix
+    const cleanKeyword = primaryKeyword.toLowerCase().replace(/[^a-z0-9]/g, '');
+    
+    return `${cleanKeyword}_docs_`;
+  }
+  
+  private static generateDescription(domainInfo: { domain: string; keywords: string[] } | null, keywords: string[], siteName: string | null): string {
+    // Use domain keywords first, then detected keywords, prioritizing non-generic terms
+    const sourceKeywords = domainInfo?.keywords || keywords;
+    
+    // Filter out generic terms and pick the most specific keyword
+    const genericTerms = ['docs', 'documentation', 'guide', 'manual', 'reference', 'api', 'www'];
+    const specificKeywords = sourceKeywords.filter(kw => !genericTerms.includes(kw.toLowerCase()));
+    const primaryKeyword = specificKeywords[0] || 'Documentation';
+    
+    // Capitalize first letter
+    const capitalizedKeyword = primaryKeyword.charAt(0).toUpperCase() + primaryKeyword.slice(1);
+    
+    return `${capitalizedKeyword} documentation and development resources`;
   }
 
   private static findCommonPrefixes(titles: string[]): string[] {
