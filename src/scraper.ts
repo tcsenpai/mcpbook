@@ -3,7 +3,7 @@ import * as cheerio from 'cheerio';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { createHash } from 'crypto';
-import { gitBookConfig } from './config.js';
+import { gitBookConfig, getCacheFilePath } from './config.js';
 import { TextProcessor } from './textProcessor.js';
 import TurndownService from 'turndown';
 
@@ -49,7 +49,7 @@ export class GitBookScraper {
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl.replace(/\/$/, ''); // Remove trailing slash
-    this.cacheFile = path.join(process.cwd(), gitBookConfig.cacheFile);
+    this.cacheFile = getCacheFilePath(baseUrl);
     this.initializeTurndownService();
   }
 
@@ -150,6 +150,10 @@ export class GitBookScraper {
 
   private async saveToCache(): Promise<void> {
     try {
+      // Ensure cache directory exists
+      const cacheDir = path.dirname(this.cacheFile);
+      await fs.mkdir(cacheDir, { recursive: true });
+      
       const cacheData = {
         timestamp: new Date().toISOString(),
         content: this.content,

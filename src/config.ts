@@ -1,4 +1,6 @@
 import { config } from 'dotenv';
+import os from 'os';
+import path from 'path';
 
 // Load environment variables
 config();
@@ -41,10 +43,33 @@ function getEnvArray(key: string, defaultValue: string[]): string[] {
   return value ? value.split(',').map(s => s.trim()) : defaultValue;
 }
 
+function generateCacheFileName(gitbookUrl: string): string {
+  // Create a safe filename from the GitBook URL
+  const urlObject = new URL(gitbookUrl);
+  const hostname = urlObject.hostname.replace(/[^a-zA-Z0-9-]/g, '-');
+  const pathname = urlObject.pathname.replace(/[^a-zA-Z0-9-]/g, '-').replace(/^-+|-+$/g, '') || 'root';
+  return `gitbook-cache-${hostname}-${pathname}.json`;
+}
+
+function getCacheDirectory(): string {
+  // Use XDG_CONFIG_HOME if set, otherwise use ~/.config on Unix or AppData on Windows
+  const xdgConfigHome = process.env.XDG_CONFIG_HOME;
+  if (xdgConfigHome) {
+    return path.join(xdgConfigHome, 'mcpbooks');
+  }
+  
+  const homeDir = os.homedir();
+  if (process.platform === 'win32') {
+    return path.join(homeDir, 'AppData', 'Roaming', 'mcpbooks');
+  } else {
+    return path.join(homeDir, '.config', 'mcpbooks');
+  }
+}
+
 export const gitBookConfig: GitBookConfig = {
   gitbookUrl: getEnvVar('GITBOOK_URL', 'https://docs.kynesys.xyz'),
   cacheTtlHours: getEnvNumber('CACHE_TTL_HOURS', 1),
-  cacheFile: getEnvVar('CACHE_FILE', '.gitbook-cache.json'),
+  cacheFile: getEnvVar('CACHE_FILE', ''), // Will be generated based on GitBook URL
   scrapingDelayMs: getEnvNumber('SCRAPING_DELAY_MS', 100),
   maxRetries: getEnvNumber('MAX_RETRIES', 3),
   requestTimeoutMs: getEnvNumber('REQUEST_TIMEOUT_MS', 30000),
@@ -93,13 +118,26 @@ export function validateConfig(): void {
   }
 }
 
+export function getCacheFilePath(gitbookUrl?: string): string {
+  const url = gitbookUrl || gitBookConfig.gitbookUrl;
+  
+  // If CACHE_FILE is explicitly set, use it as-is
+  if (gitBookConfig.cacheFile) {
+    return gitBookConfig.cacheFile;
+  }
+  
+  const cacheDir = getCacheDirectory();
+  const cacheFileName = generateCacheFileName(url);
+  return path.join(cacheDir, cacheFileName);
+}
+
 // Log configuration on startup
 export function logConfig(): void {
   if (gitBookConfig.debug) {
     console.error('GitBook MCP Server Configuration:');
     console.error('- GitBook URL:', gitBookConfig.gitbookUrl);
     console.error('- Cache TTL:', gitBookConfig.cacheTtlHours, 'hours');
-    console.error('- Cache File:', gitBookConfig.cacheFile);
+    console.error('- Cache File:', getCacheFilePath());
     console.error('- Scraping Delay:', gitBookConfig.scrapingDelayMs, 'ms');
     console.error('- Max Retries:', gitBookConfig.maxRetries);
     console.error('- Request Timeout:', gitBookConfig.requestTimeoutMs, 'ms');
