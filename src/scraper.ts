@@ -121,7 +121,18 @@ export class GitBookScraper {
     // Retry failed pages
     await this.retryFailedPages();
     
-    console.error(`Scraping completed. Found ${Object.keys(this.content).length} pages`);
+    const pageCount = Object.keys(this.content).length;
+    console.error(`Scraping completed. Found ${pageCount} pages`);
+    
+    if (pageCount === 0) {
+      console.error('\n⚠️  \x1b[33mWARNING: No pages were scraped successfully!\x1b[0m');
+      console.error('   This usually means:');
+      console.error('   • The URL is not a valid GitBook site');
+      console.error('   • The site structure is different than expected');
+      console.error('   • Network issues or access restrictions');
+      console.error('   • Please verify the GITBOOK_URL in your .env file\n');
+    }
+    
     if (this.failedPages.size > 0) {
       console.error(`Warning: ${this.failedPages.size} pages failed to scrape after retries`);
     }
