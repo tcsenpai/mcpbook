@@ -9,13 +9,60 @@ export interface DomainInfo {
 }
 
 export class DomainDetector {
+  private static extractDomainInfo(url: string): { domain: string; keywords: string[] } {
+    try {
+      const urlObj = new URL(url);
+      const domain = urlObj.hostname;
+      
+      // Extract meaningful parts from domain
+      const parts = domain
+        .replace(/^www\.|\.com$|\.org$|\.net$|\.io$|\.dev$/g, '')
+        .split('.')
+        .filter(part => part.length > 2) // Filter out TLDs and very short parts
+        .map(part => part.toLowerCase());
+      
+      // Convert domain parts to keywords
+      const keywords = parts
+        .flatMap(part => {
+          // Split camelCase/PascalCase
+          const words = part.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase().split(' ');
+          // Split by special characters
+          return words.flatMap(word => word.split(/[-_]/));
+        })
+        .filter(word => word.length > 2); // Filter out very short words
+      
+      return {
+        domain,
+        keywords: [...new Set(keywords)] // Remove duplicates
+      };
+    } catch {
+      return { domain: '', keywords: [] };
+    }
+  }
+
   private static readonly DOMAIN_PATTERNS = new Map([
-    // Demos Network patterns
-    [/demos.*network|kynesys|demos.*sdk/i, {
-      name: 'demos-network-docs',
-      description: 'Demos Network and Kynesys blockchain documentation',
-      keywords: ['demos', 'kynesys', 'blockchain', 'sdk', 'cross-chain', 'authentication', 'transactions'],
-      toolPrefix: 'demos_'
+    // Generic documentation patterns with improved matching
+    [/(?:official\s+)?(?:documentation|docs|guide|manual|reference)(?:\s+portal|\s+hub)?/i, {
+      name: 'generic-docs',
+      description: 'Documentation Portal',
+      keywords: ['documentation', 'docs', 'guide', 'manual', 'reference'],
+      toolPrefix: 'generic_'
+    }],
+
+    // Programming language patterns
+    [/python|javascript|java|csharp|ruby|php/i, {
+      name: 'programming-docs',
+      description: 'Programming language documentation',
+      keywords: ['python', 'javascript', 'java', 'csharp', 'ruby', 'php'],
+      toolPrefix: 'programming_'
+    }],
+
+    // Framework patterns
+    [/react|angular|vue|django|flask/i, {
+      name: 'framework-docs',
+      description: 'Framework documentation',
+      keywords: ['react', 'angular', 'vue', 'django', 'flask'],
+      toolPrefix: 'framework_'
     }],
     
     // Generic blockchain patterns
@@ -43,7 +90,7 @@ export class DomainDetector {
     }]
   ]);
 
-  static detectDomain(content: GitBookContent): DomainInfo {
+  static detectDomain(content: GitBookContent, baseUrl?: string): DomainInfo {
     // If auto-detection is disabled, use config values
     if (!gitBookConfig.autoDetectDomain) {
       return {
@@ -54,11 +101,21 @@ export class DomainDetector {
       };
     }
 
-    // Collect text for analysis
+    // Extract domain from URL if available
+    const domainInfo = baseUrl ? this.extractDomainInfo(baseUrl) : null;
+
+    // Collect text for analysis with improved sampling
     const pages = Object.values(content);
-    const sampleSize = Math.min(10, pages.length); // Analyze first 10 pages
-    const textSample = pages
-      .slice(0, sampleSize)
+    const sampleSize = Math.min(15, pages.length); // Analyze more pages for better context
+    
+    // Sort pages by content length and take a mix of long and short pages for better representation
+    const sortedPages = [...pages].sort((a, b) => b.content.length - a.content.length);
+    const sampledPages = [
+      ...sortedPages.slice(0, Math.floor(sampleSize / 2)), // Top half by length
+      ...sortedPages.slice(-Math.floor(sampleSize / 2)) // Bottom half by length
+    ];
+    
+    const textSample = sampledPages
       .map(page => `${page.title} ${page.content} ${page.section}`)
       .join(' ')
       .toLowerCase();
@@ -76,15 +133,33 @@ export class DomainDetector {
       }
     }
 
-    // Fallback: extract keywords from content
+    // Smart keyword extraction
     const detectedKeywords = this.extractKeywords(textSample);
     const siteName = this.extractSiteName(pages);
+    
+    // Incorporate domain information if available
+    let combinedKeywords = detectedKeywords;
+    let finalSiteName = siteName;
+    
+    if (domainInfo) {
+      combinedKeywords = [
+        ...domainInfo.keywords,
+        ...detectedKeywords
+      ];
+      finalSiteName = finalSiteName || domainInfo.domain;
+    }
+
+    // Get the most relevant keywords by frequency and position
+    const topKeywords = this.rankKeywords(combinedKeywords, textSample);
+    
+    // Generate a smarter description using top keywords
+    const description = this.generateDescription(finalSiteName || 'Documentation', topKeywords);
 
     return {
-      name: siteName || gitBookConfig.serverName,
-      description: `${siteName || 'Documentation'} - ${detectedKeywords.slice(0, 3).join(', ')} documentation`,
+      name: finalSiteName || gitBookConfig.serverName,
+      description,
       keywords: gitBookConfig.autoDetectKeywords 
-        ? [...new Set([...detectedKeywords, ...gitBookConfig.domainKeywords])]
+        ? [...new Set([...topKeywords, ...gitBookConfig.domainKeywords])]
         : gitBookConfig.domainKeywords,
       toolPrefix: gitBookConfig.toolPrefix
     };
@@ -136,6 +211,61 @@ export class DomainDetector {
     }
 
     return null;
+  }
+
+  private static rankKeywords(keywords: string[], textSample: string): string[] {
+    const wordScores = new Map<string, number>();
+    
+    keywords.forEach(word => {
+      let score = 0;
+      
+      // Base frequency score
+      const regex = new RegExp(`\\b${word}\\b`, 'gi');
+      const matches = textSample.match(regex) || [];
+      score += matches.length;
+      
+      // Boost score if word appears in important positions (start of sentences, after colons)
+      const importantPositionRegex = new RegExp(`(?:\\.|:|^)\\s*\\b${word}\\b`, 'gi');
+      const importantMatches = textSample.match(importantPositionRegex) || [];
+      score += importantMatches.length * 2;
+      
+      // Boost technical terms
+      if (this.isTechnicalTerm(word)) {
+        score *= 1.5;
+      }
+      
+      wordScores.set(word, score);
+    });
+    
+    // Return top 10 keywords by score
+    return Array.from(wordScores.entries())
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, 10)
+      .map(([word]) => word);
+  }
+  
+  private static isTechnicalTerm(word: string): boolean {
+    const technicalPatterns = [
+      /^(?:api|sdk|cli)$/i,
+      /(?:sync|async)$/i,
+      /^(?:micro|macro|meta|auto|multi)/i,
+      /(?:service|platform|framework|library|module)$/i,
+      /(?:config|setup|deploy|build|test|dev)/i
+    ];
+    
+    return technicalPatterns.some(pattern => pattern.test(word));
+  }
+  
+  private static generateDescription(siteName: string, keywords: string[]): string {
+    // Get the most relevant keywords for the description
+    const topKeywords = keywords.slice(0, 3);
+    
+    // Generate a more natural description
+    const keywordPhrase = topKeywords.length > 1 
+      ? `${topKeywords.slice(0, -1).join(', ')} and ${topKeywords.slice(-1)}`
+      : topKeywords[0];
+    
+    return `${siteName} - Comprehensive documentation for ${keywordPhrase}`;
   }
 
   private static findCommonPrefixes(titles: string[]): string[] {

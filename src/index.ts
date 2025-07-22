@@ -696,7 +696,7 @@ Keep it focused on getting someone up and running quickly. Use actual examples f
     await this.store.updateContent(content);
     
     // Detect domain after content is loaded
-    this.domainInfo = DomainDetector.detectDomain(content);
+    this.domainInfo = DomainDetector.detectDomain(content, gitBookConfig.gitbookUrl);
     
     console.error(`${this.domainInfo.name} v${gitBookConfig.serverVersion} running on stdio`);
     console.error(`Loaded content from: ${gitBookConfig.gitbookUrl}`);

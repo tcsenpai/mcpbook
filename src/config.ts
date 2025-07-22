@@ -67,17 +67,17 @@ function getCacheDirectory(): string {
 }
 
 export const gitBookConfig: GitBookConfig = {
-  gitbookUrl: getEnvVar('GITBOOK_URL', 'https://docs.kynesys.xyz'),
+  gitbookUrl: getEnvVar('GITBOOK_URL', ''),
   cacheTtlHours: getEnvNumber('CACHE_TTL_HOURS', 1),
   cacheFile: getEnvVar('CACHE_FILE', ''), // Will be generated based on GitBook URL
   scrapingDelayMs: getEnvNumber('SCRAPING_DELAY_MS', 100),
   maxRetries: getEnvNumber('MAX_RETRIES', 3),
   requestTimeoutMs: getEnvNumber('REQUEST_TIMEOUT_MS', 30000),
   maxConcurrentRequests: getEnvNumber('MAX_CONCURRENT_REQUESTS', 5),
-  serverName: getEnvVar('SERVER_NAME', 'demos-network-docs'),
-  serverDescription: getEnvVar('SERVER_DESCRIPTION', 'Demos Network and Kynesys blockchain documentation'),
-  domainKeywords: getEnvArray('DOMAIN_KEYWORDS', ['demos', 'kynesys', 'blockchain', 'sdk', 'cross-chain', 'authentication']),
-  toolPrefix: getEnvVar('TOOL_PREFIX', 'demos_'),
+  serverName: getEnvVar('SERVER_NAME', ''),
+  serverDescription: getEnvVar('SERVER_DESCRIPTION', ''),
+  domainKeywords: getEnvArray('DOMAIN_KEYWORDS', []),
+  toolPrefix: getEnvVar('TOOL_PREFIX', 'mcpbooks'),
   autoDetectDomain: getEnvBoolean('AUTO_DETECT_DOMAIN', true),
   autoDetectKeywords: getEnvBoolean('AUTO_DETECT_KEYWORDS', true),
   serverVersion: getEnvVar('SERVER_VERSION', '1.0.0'),
@@ -85,10 +85,23 @@ export const gitBookConfig: GitBookConfig = {
   logLevel: (getEnvVar('LOG_LEVEL', 'info') as 'debug' | 'info' | 'warn' | 'error'),
 };
 
+
 // Validate configuration
 export function validateConfig(): void {
-  if (!gitBookConfig.gitbookUrl) {
+  if (!gitBookConfig.gitbookUrl || gitBookConfig.gitbookUrl.trim() === '') {
     throw new Error('GITBOOK_URL is required');
+  }
+
+  if (!gitBookConfig.serverDescription || gitBookConfig.serverDescription.trim() === '') {
+    throw new Error('SERVER_DESCRIPTION is required');
+  }
+
+  if (!gitBookConfig.domainKeywords || gitBookConfig.domainKeywords.length === 0) {
+    throw new Error('DOMAIN_KEYWORDS must contain at least one keyword');
+  }
+
+  if (!gitBookConfig.serverName || gitBookConfig.serverName.trim() === '') {
+    throw new Error('SERVER_NAME is required');
   }
 
   try {
