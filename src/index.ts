@@ -715,16 +715,28 @@ Keep it focused on getting someone up and running quickly. Use actual examples f
       
       // Detect domain after initial scraping
       this.domainInfo = DomainDetector.detectDomain(content, gitBookConfig.gitbookUrl);
+      // Cache domain info for future startups
+      this.store.setDomainInfo(this.domainInfo);
     } else {
       console.error(`Loaded ${pageCount} pages from SQLite cache`);
       
-      // For cached content, detect domain from stored pages
-      const pages = await this.store.getAllPages();
-      const content = pages.reduce((acc, page) => {
-        acc[page.path] = page;
-        return acc;
-      }, {} as any);
-      this.domainInfo = DomainDetector.detectDomain(content, gitBookConfig.gitbookUrl);
+      // Try to load cached domain info first (fast)
+      const cachedDomainInfo = this.store.getDomainInfo();
+      if (cachedDomainInfo) {
+        this.domainInfo = cachedDomainInfo;
+        console.error('Using cached domain info for instant startup');
+      } else {
+        // Fallback: use sample pages for domain detection (much faster than all pages)
+        console.error('No cached domain info, detecting from sample pages...');
+        const samplePages = await this.store.getSamplePages(20);
+        const sampleContent = samplePages.reduce((acc, page) => {
+          acc[page.path] = page;
+          return acc;
+        }, {} as any);
+        this.domainInfo = DomainDetector.detectDomain(sampleContent, gitBookConfig.gitbookUrl);
+        // Cache the detected domain info for next startup
+        this.store.setDomainInfo(this.domainInfo);
+      }
       
       // Run background update check (non-blocking)
       this.checkForUpdatesBackground();

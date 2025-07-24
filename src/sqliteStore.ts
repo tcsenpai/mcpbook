@@ -121,9 +121,9 @@ export class SQLiteStore {
           page.section,
           page.subsection || null,
           page.url,
-          page.lastUpdated.getTime(),
+          page.lastUpdated instanceof Date ? page.lastUpdated.getTime() : new Date(page.lastUpdated).getTime(),
           page.contentHash,
-          page.lastChecked.getTime(),
+          page.lastChecked instanceof Date ? page.lastChecked.getTime() : new Date(page.lastChecked).getTime(),
           page.searchableText
         );
       }
@@ -336,5 +336,25 @@ export class SQLiteStore {
     } catch (error) {
       // Ignore if JSON cache doesn't exist
     }
+  }
+
+  // Domain info caching for fast startup
+  setDomainInfo(domainInfo: any): void {
+    this.setMetadata('domain_info', JSON.stringify(domainInfo));
+  }
+
+  getDomainInfo(): any | null {
+    const cached = this.getMetadata('domain_info');
+    return cached ? JSON.parse(cached) : null;
+  }
+
+  // Get sample pages for domain detection (much faster than getAllPages)
+  async getSamplePages(limit: number = 20): Promise<GitBookPage[]> {
+    const stmt = this.db.prepare(`
+      SELECT * FROM pages ORDER BY RANDOM() LIMIT ?
+    `);
+    
+    const rows = stmt.all(limit) as any[];
+    return rows.map(row => this.rowToPage(row));
   }
 }
