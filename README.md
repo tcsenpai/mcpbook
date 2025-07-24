@@ -17,16 +17,17 @@ An MCP (Model Context Protocol) server that exposes GitBook content for AI assis
 - **MCP Prompts**: Pre-built prompts for documentation workflows
 - **Respectful Scraping**: Rate limiting and error handling built-in
 
-## Installation
+## Installation and Usage
+
+### Install dependencies
 
 ```bash
 npm install
-npm run build
 ```
 
-## Configuration
+### Configuration
 
-### Quick Start (Auto-Detection)
+#### Quick Start (Auto-Detection)
 
 For most GitBooks, just set the URL and let auto-detection handle the rest:
 
@@ -92,13 +93,22 @@ TOOL_PREFIX=help_
 
 ## Usage
 
-### Running the Server
+### From source
+
+#### Building the MCP server
+
+```bash
+npm run build
+chmod +x dist/index.js
+```
+
+#### Running the Server
 
 ```bash
 npm start
 ```
 
-### Installing in Claude Desktop
+#### Installing in Claude Desktop
 
 1. Build the project: `npm run build`
 2. Add to your `claude_desktop_config.json`:
@@ -121,28 +131,34 @@ Config file locations:
 
 ### Global Installation
 
+## Name your server
+
+Edit `package.json` changing the name of the server to a name you like, for example `my-awesome-mcp`. Remember to edit the `bin` section too.
+
+## Install the server as a binary
+
 ```bash
 npm install -g .
 ```
 
-Then in Claude Desktop config:
+### Then in Claude Desktop config:
 ```json
 {
   "mcpServers": {
     "gitbook": {
-      "command": "gitbook-mcp-server"
+      "command": "my-awesome-mcp"
     }
   }
 }
 ```
 
-### Testing with MCP Inspector
+## Testing with MCP Inspector
 
 ```bash
 npx @modelcontextprotocol/inspector node dist/index.js
 ```
 
-### Running as REST API
+## Running as REST API
 
 ```bash
 # Start REST API server on port 3000
@@ -183,7 +199,7 @@ curl http://localhost:3000/api/status
 curl -X POST http://localhost:3000/api/refresh
 ```
 
-### Available Tools
+## Available Tools
 
 The server exposes MCP tools with automatic prefixing based on your content:
 
@@ -221,7 +237,7 @@ The server exposes MCP tools with automatic prefixing based on your content:
 4. **`api_reference`** - Format content as API documentation
 5. **`quick_start_guide`** - Generate quick start guides
 
-### Example Usage
+## Example Usage
 
 With auto-detection, tool names adapt to your content:
 
@@ -239,7 +255,7 @@ With auto-detection, tool names adapt to your content:
 {"tool": "docs_refresh_content", "arguments": {}}
 ```
 
-### AI Integration
+## AI Integration
 
 The server is designed for optimal AI assistant integration:
 
