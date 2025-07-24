@@ -1,4 +1,3 @@
-import fetch from 'node-fetch';
 import * as cheerio from 'cheerio';
 import { promises as fs } from 'fs';
 import path from 'path';

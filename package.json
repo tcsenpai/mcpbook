@@ -7,6 +7,9 @@
     "gitbook-mcp-server": "dist/index.js",
     "create-gitbook-mcp": "scripts/create-mcp.js"
   },
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "build": "tsc && chmod +x dist/index.js && node scripts/auto-detect.js",
     "build:clean": "tsc && chmod +x dist/index.js",
@@ -29,7 +32,6 @@
     "express": "^4.18.2",
     "fuse.js": "^7.1.0",
     "natural": "^8.1.0",
-    "node-fetch": "^3.3.2",
     "turndown": "^7.1.3"
   },
   "devDependencies": {
