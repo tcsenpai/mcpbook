@@ -4,16 +4,19 @@
   "description": "MCP server for GitBook integration",
   "main": "dist/index.js",
   "bin": {
-    "gitbook-mcp-server": "dist/index.js"
+    "gitbook-mcp-server": "dist/index.js",
+    "create-gitbook-mcp": "scripts/create-mcp.js"
   },
   "scripts": {
-    "build": "tsc && node scripts/auto-detect.js",
-    "build:clean": "tsc",
+    "build": "tsc && chmod +x dist/index.js && node scripts/auto-detect.js",
+    "build:clean": "tsc && chmod +x dist/index.js",
+    "build:init": "npm run build && node scripts/init-fetch.js",
     "auto-detect": "npm run build:clean && node scripts/auto-detect.js",
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js",
     "start:http": "node dist/index.js --streamable-http",
     "start:api": "node dist/api.js",
+    "create-mcp": "node scripts/create-mcp.js",
     "test": "npm run build && node test.js"
   },
   "dependencies": {

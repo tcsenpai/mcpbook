@@ -53,6 +53,44 @@ export class GitBookScraper {
     this.initializeTurndownService();
   }
 
+  private joinUrls(base: string, path: string): string {
+    // Handle absolute URLs
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+      return path;
+    }
+    
+    // Clean base URL (remove trailing slash)
+    const cleanBase = base.replace(/\/$/, '');
+    
+    // Clean path (ensure it starts with /)
+    const cleanPath = path.startsWith('/') ? path : `/${path}`;
+    
+    // Check for path prefix duplication
+    const baseUrl = new URL(cleanBase);
+    const basePath = baseUrl.pathname;
+    
+    // If the path already starts with the base path, don't duplicate it
+    if (basePath !== '/' && cleanPath.startsWith(basePath)) {
+      return `${baseUrl.origin}${cleanPath}`;
+    }
+    
+    return `${cleanBase}${cleanPath}`;
+  }
+
+  private async fetchWithHeaders(url: string): Promise<Response> {
+    return fetch(url, {
+      redirect: 'follow',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept-Encoding': 'gzip, deflate',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1'
+      }
+    });
+  }
+
   private initializeTurndownService(): void {
     this.turndownService = new TurndownService({
       headingStyle: 'atx',
@@ -178,7 +216,7 @@ export class GitBookScraper {
   }
 
   private async scrapePage(path: string, forceUpdate: boolean = false): Promise<void> {
-    const url = `${this.baseUrl}${path}`;
+    const url = this.joinUrls(this.baseUrl, path);
     
     if (this.visitedUrls.has(url) && !forceUpdate) {
       return;
@@ -191,7 +229,7 @@ export class GitBookScraper {
         console.error(`Scraping: ${url}`);
       }
       
-      const response = await fetch(url);
+      const response = await this.fetchWithHeaders(url);
       
       if (!response.ok) {
         console.error(`Failed to fetch ${url}: ${response.status}`);
@@ -529,7 +567,7 @@ export class GitBookScraper {
     const existingPage = this.content[path];
     if (!existingPage) return;
 
-    const url = `${this.baseUrl}${path}`;
+    const url = this.joinUrls(this.baseUrl, path);
     let retryCount = 0;
     
     while (retryCount <= 2) { // Quick retry for change detection
@@ -538,7 +576,7 @@ export class GitBookScraper {
           console.error(`Checking for changes: ${url}`);
         }
 
-        const response = await fetch(url);
+        const response = await this.fetchWithHeaders(url);
         
         if (!response.ok) {
           if (response.status >= 500 && retryCount < 2) {
@@ -620,8 +658,8 @@ export class GitBookScraper {
       processed.add(path);
       
       try {
-        const url = `${this.baseUrl}${path}`;
-        const response = await fetch(url);
+        const url = this.joinUrls(this.baseUrl, path);
+        const response = await this.fetchWithHeaders(url);
         
         if (response.ok) {
           const html = await response.text();

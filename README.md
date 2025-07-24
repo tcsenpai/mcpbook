@@ -17,6 +17,26 @@ A high-performance MCP (Model Context Protocol) server that transforms any publi
 
 ## 🚀 Quick Start
 
+> **💡 Recommended: Use the interactive creator for the best experience!**
+
+### ⭐ **One-Command Setup**
+```bash
+# Install creator globally (one-time)
+npm install -g gitbook-mcp-server
+
+# Create any GitBook MCP server instantly
+create-gitbook-mcp
+```
+
+**That's it!** 🎉 The interactive wizard will:
+- ✨ **Guide you through setup** with smart defaults
+- 🔍 **Auto-detect domain/keywords** from your GitBook  
+- 📦 **Install in organized directories** (`~/.config/mcpbooks/servers/[name]`)
+- 🌍 **Optionally install globally** (accessible as `your-server-name` command)
+- 🤖 **Auto-configure Claude Desktop** (optional)
+- 🚀 **Pre-cache everything** for instant server startup
+
+### 🛠️ Manual Setup (Advanced Users)
 1. **Install and Configure**
    ```bash
    npm install
@@ -37,8 +57,6 @@ A high-performance MCP (Model Context Protocol) server that transforms any publi
    ```bash
    npx @modelcontextprotocol/inspector node dist/index.js
    ```
-
-That's it! The server auto-detects your GitBook's domain, extracts relevant keywords, and creates optimized tool names.
 
 ## 📦 Installation Options
 
