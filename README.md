@@ -131,17 +131,17 @@ Config file locations:
 
 ### Global Installation
 
-## Name your server
+#### Name your server
 
 Edit `package.json` changing the name of the server to a name you like, for example `my-awesome-mcp`. Remember to edit the `bin` section too.
 
-## Install the server as a binary
+#### Install the server as a binary
 
 ```bash
 npm install -g .
 ```
 
-### Then in Claude Desktop config:
+#### Then in Claude Desktop config:
 ```json
 {
   "mcpServers": {
