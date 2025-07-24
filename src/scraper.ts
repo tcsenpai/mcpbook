@@ -212,7 +212,7 @@ export class GitBookScraper {
 
       // Calculate content hash
       const contentHash = this.calculateHash(content + title);
-      const cleanTitle = title.replace(' - Kynesys Docs', '').trim();
+      const cleanTitle = title.trim();
       
       // Generate searchable text
       const searchableText = this.textProcessor.createSearchableText(
@@ -456,7 +456,6 @@ export class GitBookScraper {
       'backend': 'Backend',
       'frontend': 'Frontend',
       'introduction': 'Introduction',
-      'demos-network': 'Introduction',
     };
     
     return sectionMap[pathParts[0].toLowerCase()] || pathParts[0];

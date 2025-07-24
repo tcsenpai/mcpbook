@@ -12,13 +12,14 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { GitBookScraper } from './scraper.js';
 import { ContentStore } from './store.js';
-import { gitBookConfig, validateConfig, logConfig } from './config.js';
+import { SQLiteStore } from './sqliteStore.js';
+import { gitBookConfig, validateConfig, logConfig, getCacheFilePath } from './config.js';
 import { DomainDetector, DomainInfo } from './domainDetector.js';
 
 class GitBookMCPServer {
   private server: Server;
   private scraper: GitBookScraper;
-  private store: ContentStore;
+  private store: SQLiteStore;
   private domainInfo: DomainInfo;
 
   constructor() {
@@ -37,11 +38,21 @@ class GitBookMCPServer {
       {
         name: this.domainInfo.name,
         version: gitBookConfig.serverVersion,
+      },
+      {
+        capabilities: {
+          tools: {
+            listChanged: true
+          },
+          prompts: {
+            listChanged: true
+          }
+        }
       }
     );
 
     this.scraper = new GitBookScraper(gitBookConfig.gitbookUrl);
-    this.store = new ContentStore();
+    this.store = new SQLiteStore(gitBookConfig.gitbookUrl);
     this.setupHandlers();
   }
 
@@ -354,7 +365,7 @@ class GitBookMCPServer {
   }
 
   private async handleGetStatus() {
-    const stats = this.store.getStats();
+    const stats = await this.store.getStats();
     const failureStats = this.scraper.getFailureStats();
     
     const status = {
@@ -690,20 +701,73 @@ Keep it focused on getting someone up and running quickly. Use actual examples f
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
     
-    // Initial content load
-    await this.scraper.scrapeAll();
-    const content = this.scraper.getContent();
-    await this.store.updateContent(content);
+    // Try to migrate from JSON cache first
+    const jsonCachePath = getCacheFilePath(gitBookConfig.gitbookUrl).replace('.db', '.json');
+    await this.store.importFromJson(jsonCachePath);
     
-    // Detect domain after content is loaded
-    this.domainInfo = DomainDetector.detectDomain(content, gitBookConfig.gitbookUrl);
+    // Check if we have content or need to scrape
+    const pageCount = await this.store.getPageCount();
+    if (pageCount === 0) {
+      console.error('No cached content found, running initial scrape...');
+      await this.scraper.scrapeAll();
+      const content = this.scraper.getContent();
+      await this.store.updateContent(content);
+      
+      // Detect domain after initial scraping
+      this.domainInfo = DomainDetector.detectDomain(content, gitBookConfig.gitbookUrl);
+    } else {
+      console.error(`Loaded ${pageCount} pages from SQLite cache`);
+      
+      // For cached content, detect domain from stored pages
+      const pages = await this.store.getAllPages();
+      const content = pages.reduce((acc, page) => {
+        acc[page.path] = page;
+        return acc;
+      }, {} as any);
+      this.domainInfo = DomainDetector.detectDomain(content, gitBookConfig.gitbookUrl);
+      
+      // Run background update check (non-blocking)
+      this.checkForUpdatesBackground();
+    }
     
     console.error(`${this.domainInfo.name} v${gitBookConfig.serverVersion} running on stdio`);
     console.error(`Loaded content from: ${gitBookConfig.gitbookUrl}`);
     console.error(`Detected domain: ${this.domainInfo.description}`);
     console.error(`Keywords: ${this.domainInfo.keywords.join(', ')}`);
   }
+
+  private async checkForUpdatesBackground(): Promise<void> {
+    // Run update check in background, don't block startup
+    setTimeout(async () => {
+      try {
+        console.error('Running background update check...');
+        await this.scraper.scrapeAll();
+        const content = this.scraper.getContent();
+        if (Object.keys(content).length > 0) {
+          await this.store.updateContent(content);
+          console.error('Background update completed');
+        }
+      } catch (error) {
+        console.error('Background update failed:', error);
+      }
+    }, 1000); // 1 second delay to ensure server is fully started
+  }
 }
 
-const server = new GitBookMCPServer();
-server.run().catch(console.error);
+// Check command line arguments for transport type
+const args = process.argv.slice(2);
+const useHttp = args.includes('--http') || args.includes('--streamable-http');
+const httpPort = args.find(arg => arg.startsWith('--port='))?.split('=')[1];
+
+if (useHttp) {
+  // Use StreamableHTTP transport
+  import('./httpServer.js').then(({ GitBookMCPHttpServer }) => {
+    const port = httpPort ? parseInt(httpPort) : (process.env.MCP_HTTP_PORT ? parseInt(process.env.MCP_HTTP_PORT) : 3001);
+    const httpServer = new GitBookMCPHttpServer();
+    httpServer.run(port).catch(console.error);
+  });
+} else {
+  // Use stdio transport (default)
+  const server = new GitBookMCPServer();
+  server.run().catch(console.error);
+}

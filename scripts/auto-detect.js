@@ -13,6 +13,7 @@ async function runAutoDetection() {
     
     // Import the modules after config is loaded
     const { GitBookScraper } = await import('../dist/scraper.js');
+    const { SQLiteStore } = await import('../dist/sqliteStore.js');
     const { DomainDetector } = await import('../dist/domainDetector.js');
     const { gitBookConfig, getCacheFilePath } = await import('../dist/config.js');
     
@@ -41,6 +42,12 @@ async function runAutoDetection() {
     await scraper.scrapeAll();
     const content = scraper.getContent();
     
+    // Only proceed if we have content
+    if (Object.keys(content).length === 0) {
+      console.log('⚠️  No content scraped, cannot run auto-detection');
+      return;
+    }
+    
     // Detect domain information
     console.log('🧠 Analyzing content for auto-detection...');
     const domainInfo = DomainDetector.detectDomain(content, gitBookConfig.gitbookUrl);
@@ -54,11 +61,17 @@ async function runAutoDetection() {
     // Update .env file
     await updateEnvFile(domainInfo);
     
-    // Clean up cache file
-    const cacheFile = getCacheFilePath(gitBookConfig.gitbookUrl);
+    // Store content in SQLite for faster future startups
+    const store = new SQLiteStore(gitBookConfig.gitbookUrl);
+    await store.updateContent(content);
+    store.close();
+    console.log('💾 Stored content in SQLite cache for fast startup');
+    
+    // Clean up JSON cache file if it exists
+    const jsonCacheFile = getCacheFilePath(gitBookConfig.gitbookUrl);
     try {
-      await fs.unlink(cacheFile);
-      console.log('🧹 Cleaned up temporary cache file');
+      await fs.unlink(jsonCacheFile);
+      console.log('🧹 Cleaned up temporary JSON cache file');
     } catch (error) {
       // Cache file might not exist, ignore
     }

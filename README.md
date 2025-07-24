@@ -2,361 +2,69 @@
 
 [![MCP Badge](https://lobehub.com/badge/mcp-full/tcsenpai-mcpbook)](https://lobehub.com/mcp/tcsenpai-mcpbook)
 
-An MCP (Model Context Protocol) server that exposes GitBook content for AI assistants. This server scrapes and indexes GitBook documentation, making it searchable and accessible through MCP tools.
+A high-performance MCP (Model Context Protocol) server that transforms any public GitBook into an AI-accessible knowledge base. Features instant startup, intelligent caching, and automatic domain detection.
 
-## Features
+## ✨ Key Features
 
-- **Universal GitBook Support**: Works with any public GitBook site
-- **Smart Domain Detection**: Automatically detects and brands for your content
-- **Advanced Search**: Fuzzy search with stemming, normalization, and ranking
-- **Markdown Preservation**: Converts HTML to clean markdown with formatting preserved
-- **Code Block Extraction**: Syntax highlighting and language detection for code examples
-- **REST API**: HTTP endpoints alongside MCP for web integration
-- **Intelligent Caching**: Only re-scrapes changed content for performance
-- **Parallel Processing**: Fast scraping with configurable concurrency
-- **MCP Prompts**: Pre-built prompts for documentation workflows
-- **Respectful Scraping**: Rate limiting and error handling built-in
+- **⚡ Instant Startup** - SQLite storage with sub-second server initialization
+- **🔍 Advanced Search** - FTS5 full-text search with fuzzy matching and ranking  
+- **🧠 Smart Auto-Detection** - Automatically detects domain, keywords, and branding
+- **📝 Markdown Perfect** - Preserves formatting with syntax-highlighted code blocks
+- **🔄 Background Updates** - Non-blocking change detection and cache refresh
+- **🌐 Universal Support** - Works with any public GitBook site
+- **📡 Dual Interface** - Both MCP tools and REST API endpoints
+- **🚀 Production Ready** - Rate limiting, error handling, and robust caching
 
-## Installation and Usage
+## 🚀 Quick Start
 
-### Install dependencies
+1. **Install and Configure**
+   ```bash
+   npm install
+   echo "GITBOOK_URL=https://docs.yoursite.com" > .env
+   ```
 
+2. **Build with Auto-Detection**
+   ```bash
+   npm run build  # Automatically detects and configures your domain
+   ```
+
+3. **Start Server**
+   ```bash
+   npm start  # Instant startup with SQLite cache
+   ```
+
+4. **Test with MCP Inspector**
+   ```bash
+   npx @modelcontextprotocol/inspector node dist/index.js
+   ```
+
+That's it! The server auto-detects your GitBook's domain, extracts relevant keywords, and creates optimized tool names.
+
+## 📦 Installation Options
+
+### Option 1: Local Development
 ```bash
+git clone <repository>
+cd mcpbook
 npm install
-```
-
-### Configuration
-
-#### Quick Start (Auto-Detection)
-
-For most GitBooks, just set the URL and let auto-detection handle the rest:
-
-```bash
-cp .env.example .env
-# Edit GITBOOK_URL in .env
-echo "GITBOOK_URL=https://docs.yoursite.com" > .env
-```
-
-The server will automatically:
-- Detect your domain and generate appropriate tool names
-- Extract relevant keywords from your content
-- Create contextual descriptions for better LLM integration
-
-### Advanced Configuration
-
-Copy `.env.example` to `.env` and customize:
-
-```bash
-cp .env.example .env
-```
-
-**Essential settings:**
-- `GITBOOK_URL` - Target GitBook URL (required)
-- `AUTO_DETECT_DOMAIN=true` - Let the server detect your domain (recommended)
-- `AUTO_DETECT_KEYWORDS=true` - Extract keywords from content (recommended)
-
-**Performance settings:**
-- `CACHE_TTL_HOURS=1` - Cache expiration time
-- `MAX_CONCURRENT_REQUESTS=5` - Parallel scraping limit
-- `SCRAPING_DELAY_MS=100` - Delay between requests
-
-**Branding (optional - auto-detected if not set):**
-- `SERVER_NAME` - Custom server name
-- `SERVER_DESCRIPTION` - Custom description
-- `DOMAIN_KEYWORDS` - Comma-separated keywords
-- `TOOL_PREFIX` - Prefix for tool names (e.g., `api_` → `api_search_content`)
-
-### Examples
-
-**Generic Documentation:**
-```env
-GITBOOK_URL=https://docs.yourcompany.com
-AUTO_DETECT_DOMAIN=true
-AUTO_DETECT_KEYWORDS=true
-```
-
-**API Documentation:**
-```env
-GITBOOK_URL=https://api-docs.yourservice.com
-SERVER_NAME=yourservice-api-docs
-DOMAIN_KEYWORDS=api,rest,graphql,endpoints,reference
-TOOL_PREFIX=api_
-```
-
-**Product Documentation:**
-```env
-GITBOOK_URL=https://help.yourproduct.com
-SERVER_NAME=yourproduct-help
-DOMAIN_KEYWORDS=help,tutorial,guide,troubleshooting
-TOOL_PREFIX=help_
-```
-
-## Usage
-
-### From source
-
-#### Building the MCP server
-
-```bash
 npm run build
-chmod +x dist/index.js
-```
-
-#### Running the Server
-
-```bash
 npm start
 ```
 
-#### Installing in Claude Desktop
-
-1. Build the project: `npm run build`
-2. Add to your `claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "gitbook": {
-      "command": "node",
-      "args": ["/absolute/path/to/your/mcpbook/dist/index.js"],
-      "env": {}
-    }
-  }
-}
-```
-
-Config file locations:
-- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-
-### Global Installation
-
-#### Name your server
-
-Edit `package.json` changing the name of the server to a name you like, for example `my-awesome-mcp`. Remember to edit the `bin` section too.
-
-#### Install the server as a binary
-
+### Option 2: Global Installation
 ```bash
 npm install -g .
+# Then use the binary name from package.json
+your-mcp-server-name
 ```
 
-#### Then in Claude Desktop config:
+### Option 3: Claude Desktop Integration
 ```json
 {
   "mcpServers": {
     "gitbook": {
-      "command": "my-awesome-mcp"
-    }
-  }
-}
-```
-
-## Testing with MCP Inspector
-
-```bash
-npx @modelcontextprotocol/inspector node dist/index.js
-```
-
-## Running as REST API
-
-```bash
-# Start REST API server on port 3000
-npm run start:api
-
-# Or specify custom port
-PORT=8080 npm run start:api
-```
-
-The REST API provides HTTP endpoints for all MCP functionality:
-
-```bash
-# API documentation
-curl http://localhost:3000/api
-
-# Search content
-curl "http://localhost:3000/api/search?q=authentication"
-
-# Get specific page
-curl http://localhost:3000/api/page/sdk/websdk
-
-# Get page as markdown
-curl http://localhost:3000/api/page/sdk/websdk/markdown
-
-# Get code blocks from page
-curl http://localhost:3000/api/page/api/endpoints/code
-
-# List all sections
-curl http://localhost:3000/api/sections
-
-# Get pages in a section
-curl http://localhost:3000/api/sections/SDK/pages
-
-# Server status and stats
-curl http://localhost:3000/api/status
-
-# Refresh content cache
-curl -X POST http://localhost:3000/api/refresh
-```
-
-## Available Tools
-
-The server exposes MCP tools with automatic prefixing based on your content:
-
-**Auto-detected examples:**
-- For `docs.stripe.com` → `stripe_search_content`, `stripe_get_page`
-- For `docs.yourapi.com` → `api_search_content`, `api_get_page`
-- For generic sites → `docs_search_content`, `docs_get_page`
-
-**Core Tools:**
-
-1. **`{prefix}_search_content`** - Advanced search across all content
-   - `query` (string): Search query with fuzzy matching and stemming
-
-2. **`{prefix}_get_page`** - Get a specific page by path
-   - `path` (string): Page path (e.g., "/api/authentication")
-
-3. **`{prefix}_list_sections`** - Get the complete table of contents
-
-4. **`{prefix}_get_section_pages`** - Get all pages in a section
-   - `section` (string): Section name (e.g., "API Reference")
-
-5. **`{prefix}_refresh_content`** - Force refresh of cached content
-
-6. **`{prefix}_get_code_blocks`** - Extract code blocks with syntax highlighting
-   - `path` (string): Page path (e.g., "/api/authentication")
-
-7. **`{prefix}_get_markdown`** - Get page content as formatted markdown
-   - `path` (string): Page path (e.g., "/api/authentication")
-
-**MCP Prompts:**
-
-1. **`explain_section`** - Generate comprehensive section tutorials
-2. **`summarize_page`** - Create concise page summaries  
-3. **`compare_sections`** - Compare different documentation sections
-4. **`api_reference`** - Format content as API documentation
-5. **`quick_start_guide`** - Generate quick start guides
-
-## Example Usage
-
-With auto-detection, tool names adapt to your content:
-
-```bash
-# For API documentation (auto-detected)
-{"tool": "api_search_content", "arguments": {"query": "authentication"}}
-{"tool": "api_get_page", "arguments": {"path": "/auth/oauth"}}
-
-# For product docs (auto-detected)  
-{"tool": "product_search_content", "arguments": {"query": "billing"}}
-{"tool": "product_get_section_pages", "arguments": {"section": "Getting Started"}}
-
-# Generic documentation
-{"tool": "docs_search_content", "arguments": {"query": "installation"}}
-{"tool": "docs_refresh_content", "arguments": {}}
-```
-
-## AI Integration
-
-The server is designed for optimal AI assistant integration:
-
-**When the AI will use your MCP:**
-- Questions about your specific product/API (detected from content)
-- Searches using keywords found in your documentation
-- Requests for tutorials, guides, or references related to your domain
-
-**Smart tool descriptions:**
-- Auto-generated descriptions include your domain keywords
-- Tool names reflect your content type (API, product docs, etc.)
-- Enhanced context helps AI choose the right MCP server
-
-## Architecture
-
-- **`GitBookScraper`**: Handles web scraping, content extraction, and markdown conversion
-- **`ContentStore`**: Manages content storage and advanced search functionality
-- **`GitBookMCPServer`**: Main MCP server implementation with tool handlers
-- **`GitBookRestAPI`**: Express.js REST API server with HTTP endpoints
-- **`DomainDetector`**: Auto-detection of domain branding and keywords
-- **`TextProcessor`**: Content processing with stemming and normalization
-
-## Development
-
-```bash
-# Development mode with auto-reload
-npm run dev
-
-# Build
-npm run build
-
-# Run built version
-npm start
-```
-
-## How It Works
-
-1. **Domain Detection**: Analyzes your GitBook content to detect domain and keywords
-2. **Parallel Scraping**: Efficiently scrapes all pages using configurable concurrency
-3. **Smart Indexing**: Processes content with stemming, normalization, and fuzzy search
-4. **Change Detection**: Only re-scrapes modified pages for optimal performance
-5. **MCP Integration**: Exposes domain-specific tools and prompts for AI assistants
-
-## Universal GitBook Support
-
-This MCP server works with **any public GitBook**, including:
-
-- **Product Documentation** (Stripe, Twilio, etc.)
-- **API References** (REST, GraphQL APIs)
-- **Developer Guides** (SDKs, frameworks)
-- **Help Centers** (Support documentation)
-- **Internal Wikis** (Company knowledge bases)
-- **Technical Blogs** (Engineering documentation)
-
-**Auto-detection examples:**
-- `docs.stripe.com` → Stripe API documentation tools
-- `docs.react.dev` → React development tools  
-- `help.github.com` → GitHub support tools
-- `api.yourcompany.com` → Your API reference tools
-
-## Limitations
-
-- **Public GitBooks only** - Requires publicly accessible GitBook sites
-- **Static content** - Not API-based, scrapes published HTML
-- **Manual refresh** - No real-time updates (use `refresh_content` tool)
-- **Text-focused** - Extracts text content, not complex interactive elements
-
-## Deployment Options
-
-**Local Development:**
-```bash
-npm run dev  # Development mode with auto-reload
-```
-
-**Production MCP Server:**
-```bash
-npm run build && npm start
-```
-
-**Production REST API:**
-```bash
-npm run build && npm run start:api
-```
-
-**Docker (optional):**
-```dockerfile
-FROM node:18-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
-COPY dist/ ./dist/
-CMD ["npm", "start"]
-```
-
-**Claude Desktop Integration:**
-```json
-{
-  "mcpServers": {
-    "your-docs": {
       "command": "node",
-      "args": ["/path/to/your/dist/index.js"],
+      "args": ["/absolute/path/to/dist/index.js"],
       "env": {
         "GITBOOK_URL": "https://docs.yoursite.com"
       }
@@ -365,6 +73,221 @@ CMD ["npm", "start"]
 }
 ```
 
-## License
+**Config file locations:**
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\\Claude\\claude_desktop_config.json`
+
+### Option 4: StreamableHTTP Transport
+```bash
+npm run start:http  # StreamableHTTP on port 3001
+node dist/index.js --streamable-http --port=3002  # Custom port
+```
+
+### Option 5: REST API Server
+```bash
+npm run start:api  # HTTP server on port 3000
+PORT=8080 npm run start:api  # Custom port
+```
+
+## ⚙️ Configuration
+
+### Auto-Detection (Recommended)
+```env
+GITBOOK_URL=https://docs.yoursite.com
+AUTO_DETECT_DOMAIN=true
+AUTO_DETECT_KEYWORDS=true
+```
+
+The server will automatically:
+- Generate domain-specific tool names (`stripe_docs_search`, `api_docs_get_page`)
+- Extract relevant keywords from content
+- Create contextual descriptions for better AI integration
+
+### Manual Configuration
+```env
+# Target GitBook (required)
+GITBOOK_URL=https://docs.yoursite.com
+
+# Custom branding (optional)
+SERVER_NAME=my-api-docs
+SERVER_DESCRIPTION=API documentation and guides
+DOMAIN_KEYWORDS=api,rest,graphql,endpoints
+TOOL_PREFIX=api_
+
+# Performance tuning
+CACHE_TTL_HOURS=1
+MAX_CONCURRENT_REQUESTS=5
+SCRAPING_DELAY_MS=100
+```
+
+### Configuration Examples
+
+**API Documentation:**
+```env
+GITBOOK_URL=https://api-docs.yourservice.com
+TOOL_PREFIX=api_
+DOMAIN_KEYWORDS=api,rest,endpoints,authentication
+```
+→ Results in: `api_search_content`, `api_get_page`, etc.
+
+**Product Documentation:**
+```env
+GITBOOK_URL=https://help.yourproduct.com  
+TOOL_PREFIX=help_
+DOMAIN_KEYWORDS=tutorial,guide,troubleshooting
+```
+→ Results in: `help_search_content`, `help_get_page`, etc.
+
+## 🛠️ Available Tools
+
+The server exposes 7 MCP tools with automatic prefixing:
+
+### Core Tools
+| Tool | Description | Parameters |
+|------|-------------|------------|
+| `{prefix}_search_content` | Advanced search with ranking | `query`: Search terms |
+| `{prefix}_get_page` | Get specific page content | `path`: Page path (e.g., "/api/auth") |
+| `{prefix}_list_sections` | Get table of contents | None |
+| `{prefix}_get_section_pages` | Get all pages in section | `section`: Section name |
+| `{prefix}_refresh_content` | Force cache refresh | None |
+| `{prefix}_get_code_blocks` | Extract code with syntax highlighting | `path`: Page path |
+| `{prefix}_get_markdown` | Get formatted markdown | `path`: Page path |
+
+### MCP Prompts
+- `explain_section` - Generate comprehensive tutorials
+- `summarize_page` - Create concise summaries
+- `compare_sections` - Compare documentation sections
+- `api_reference` - Format as API documentation
+- `quick_start_guide` - Generate quick start guides
+
+## 🌐 HTTP Interfaces
+
+The server supports both MCP StreamableHTTP and traditional REST API:
+
+**StreamableHTTP MCP Protocol:**
+```bash
+# Health check
+curl http://localhost:3001/health
+
+# MCP requests (requires MCP client)
+curl -X POST http://localhost:3001/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}'
+```
+
+**REST API (separate server):**
+```bash
+# Search content
+curl "http://localhost:3000/api/search?q=authentication"
+
+# Get specific page
+curl "http://localhost:3000/api/page/api/authentication"
+
+# Get page as markdown
+curl "http://localhost:3000/api/page/api/authentication/markdown"
+
+# Get code blocks
+curl "http://localhost:3000/api/page/api/authentication/code"
+
+# List sections
+curl "http://localhost:3000/api/sections"
+
+# Get section pages
+curl "http://localhost:3000/api/sections/API/pages"
+
+# Server status
+curl "http://localhost:3000/api/status"
+
+# Refresh cache
+curl -X POST "http://localhost:3000/api/refresh"
+```
+
+## 🎯 Usage Examples
+
+### Auto-Detection Results
+- `docs.stripe.com` → `stripe_search_content`, `stripe_get_page`
+- `docs.react.dev` → `react_search_content`, `react_get_page`  
+- `api.yourcompany.com` → `api_search_content`, `api_get_page`
+- Generic sites → `docs_search_content`, `docs_get_page`
+
+### MCP Tool Usage
+```bash
+# Search for authentication docs
+{"tool": "api_search_content", "arguments": {"query": "oauth authentication"}}
+
+# Get specific page
+{"tool": "api_get_page", "arguments": {"path": "/auth/oauth"}}
+
+# Get code examples
+{"tool": "api_get_code_blocks", "arguments": {"path": "/sdk/quickstart"}}
+
+# Refresh content
+{"tool": "api_refresh_content", "arguments": {}}
+```
+
+## 🏗️ Architecture
+
+- **SQLite Storage** - Fast startup with FTS5 full-text search
+- **Background Updates** - Non-blocking change detection
+- **Auto-Detection** - Domain and keyword extraction
+- **Parallel Scraping** - Configurable concurrency
+- **Smart Caching** - Only updates changed content
+
+### Key Components
+- `GitBookScraper` - Web scraping and content extraction
+- `SQLiteStore` - High-performance storage with FTS5 search
+- `DomainDetector` - Automatic domain and keyword detection
+- `GitBookMCPServer` - MCP server with tool handlers
+- `GitBookRestAPI` - HTTP endpoints for web integration
+
+## 🔧 Development
+
+```bash
+# Development mode with auto-reload
+npm run dev
+
+# Build with auto-detection
+npm run build
+
+# Run manual auto-detection
+npm run auto-detect
+
+# Clean build (no auto-detection)
+npm run build:clean
+
+# Test with MCP Inspector
+npx @modelcontextprotocol/inspector node dist/index.js
+```
+
+## 🌍 Universal GitBook Support
+
+Works with any public GitBook, including:
+
+- **API Documentation** - Stripe, Twilio, etc.
+- **Framework Docs** - React, Vue, Angular
+- **Product Guides** - Help centers and tutorials  
+- **Developer Resources** - SDKs and references
+- **Company Wikis** - Internal documentation
+
+## ⚡ Performance
+
+- **Instant Startup**: Sub-second initialization with SQLite cache
+- **Background Updates**: Non-blocking change detection
+- **Smart Indexing**: FTS5 full-text search with ranking
+- **Efficient Storage**: SQLite replaces slow JSON parsing
+- **Memory Optimized**: On-demand loading instead of full memory cache
+
+## 🚧 Limitations
+
+- **Public GitBooks Only** - Requires publicly accessible sites
+- **Static Content** - Scrapes published HTML, not API-based
+- **Manual Refresh** - No real-time updates (use refresh tool)
+- **Text-Focused** - Extracts text content, not interactive elements
+
+## 📄 License
 
 MIT
+
+---
+
+**Need help?** Check the [MCP documentation](https://modelcontextprotocol.io) or open an issue.
