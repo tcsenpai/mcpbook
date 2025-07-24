@@ -1,5 +1,7 @@
 # GitBook MCP Server
 
+[![MCP Badge](https://lobehub.com/badge/mcp-full/tcsenpai-mcpbook)](https://lobehub.com/mcp/tcsenpai-mcpbook)
+
 An MCP (Model Context Protocol) server that exposes GitBook content for AI assistants. This server scrapes and indexes GitBook documentation, making it searchable and accessible through MCP tools.
 
 ## Features
