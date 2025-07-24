@@ -21,11 +21,12 @@ A high-performance MCP (Model Context Protocol) server that transforms any publi
 
 ### ⭐ **One-Command Setup**
 ```bash
-# Install creator globally (one-time)
-npm install -g gitbook-mcp-server
+# Clone this repo (once)
+git clone https://github.com/tcsenpai/mcpbook/
+cd mcpbook
 
 # Create any GitBook MCP server instantly
-create-gitbook-mcp
+npm exec create-gitbook-mcp
 ```
 
 **That's it!** 🎉 The interactive wizard will:
