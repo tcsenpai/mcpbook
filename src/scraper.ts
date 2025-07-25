@@ -259,6 +259,15 @@ export class GitBookScraper {
         return;
       }
 
+      // Check if it's HTML content before processing
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('text/html')) {
+        if (gitBookConfig.debug) {
+          console.error(`Skipping non-HTML content: ${url} (${contentType})`);
+        }
+        return;
+      }
+
       const html = await response.text();
       const $ = cheerio.load(html);
 
@@ -561,12 +570,35 @@ export class GitBookScraper {
     // Skip if it's just a fragment or empty
     if (!cleanHref || cleanHref === '#') return null;
     
+    // Filter out static assets and non-content paths
+    if (this.isStaticAsset(cleanHref)) return null;
+    
     // Ensure it starts with /
     if (!cleanHref.startsWith('/')) {
       return `/${cleanHref}`;
     }
     
     return cleanHref;
+  }
+
+  private isStaticAsset(path: string): boolean {
+    // Common static asset patterns
+    const staticPatterns = [
+      // File extensions
+      /\.(css|js|ico|png|jpg|jpeg|gif|svg|woff|woff2|ttf|eot|pdf|zip|tar|gz)$/i,
+      // Static directories
+      /^\/?(_images|assets|static|_static|_assets|images|img|css|js|fonts|media)\//i,
+      // Common non-content paths
+      /^\/?(_|\.)/i, // Paths starting with underscore or dot
+      /\/search\/?$/i,
+      /\/sitemap/i,
+      /\/feed/i,
+      /\/rss/i,
+      /\/robots\.txt$/i,
+      /\/favicon/i
+    ];
+    
+    return staticPatterns.some(pattern => pattern.test(path));
   }
 
   private delay(ms: number): Promise<void> {
@@ -676,36 +708,91 @@ export class GitBookScraper {
   private async discoverUrls(): Promise<void> {
     const queue = ['/'];
     const processed = new Set<string>();
+    const discoveryBatchSize = Math.min(8, gitBookConfig.maxConcurrentRequests); // Parallel discovery
+    let batchCount = 0;
+
+    // Always include the root page in discovered URLs
+    this.discoveredUrls.add('/');
+
+    console.error('🔍 Starting URL discovery...');
 
     while (queue.length > 0) {
-      const path = queue.shift()!;
-      if (processed.has(path)) continue;
-      
-      processed.add(path);
-      
+      // Process multiple paths in parallel
+      const batch: string[] = [];
+      while (batch.length < discoveryBatchSize && queue.length > 0) {
+        const path = queue.shift()!;
+        if (!processed.has(path)) {
+          processed.add(path);
+          batch.push(path);
+        }
+      }
+
+      if (batch.length === 0) break;
+
+      batchCount++;
+      console.error(`📖 Discovery batch ${batchCount}: checking ${batch.length} pages (${this.discoveredUrls.size} found, ${queue.length} queued)`);
+
       try {
-        const url = this.joinUrls(this.baseUrl, path);
-        const response = await this.fetchWithHeaders(url);
+        // Parallel discovery requests
+        const discoveryPromises = batch.map(path => this.discoverFromPath(path));
+        const batchResults = await Promise.allSettled(discoveryPromises);
         
-        if (response.ok) {
-          const html = await response.text();
-          const $ = cheerio.load(html);
-          const links = this.extractInternalLinks($);
-          
-          for (const link of links) {
-            if (!processed.has(link) && !queue.includes(link)) {
-              queue.push(link);
-              this.discoveredUrls.add(link);
-              // Report progress when discovering new URLs
-              this.reportProgress();
-            }
+        // Collect all new links from successful discoveries
+        const newLinks: string[] = [];
+        batchResults.forEach((result, index) => {
+          if (result.status === 'fulfilled') {
+            newLinks.push(...result.value);
+          } else {
+            console.error(`Discovery failed for ${batch[index]}:`, result.reason);
+          }
+        });
+
+        // Add new links to queue
+        for (const link of newLinks) {
+          if (!processed.has(link) && !queue.includes(link)) {
+            queue.push(link);
+            this.discoveredUrls.add(link);
           }
         }
+
+        // Report progress after batch
+        this.reportProgress();
         
-        await this.delay(50); // Fast discovery
+        // No delay for discovery - maximum speed
       } catch (error) {
+        console.error('Batch discovery error:', error);
+      }
+    }
+
+    console.error(`✅ Discovery complete: found ${this.discoveredUrls.size} pages in ${batchCount} batches`);
+  }
+
+  private async discoverFromPath(path: string): Promise<string[]> {
+    try {
+      const url = this.joinUrls(this.baseUrl, path);
+      const response = await this.fetchWithHeaders(url);
+      
+      if (response.ok) {
+        // Check if it's HTML content
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.includes('text/html')) {
+          if (gitBookConfig.debug) {
+            console.error(`Skipping non-HTML content: ${url} (${contentType})`);
+          }
+          return [];
+        }
+
+        const html = await response.text();
+        const $ = cheerio.load(html);
+        return this.extractInternalLinks($);
+      }
+      
+      return [];
+    } catch (error) {
+      if (gitBookConfig.debug) {
         console.error(`Discovery failed for ${path}:`, error);
       }
+      return [];
     }
   }
 
