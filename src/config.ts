@@ -2,8 +2,11 @@ import { config } from 'dotenv';
 import os from 'os';
 import path from 'path';
 
-// Load environment variables
-config();
+// Load environment variables from the binary's directory (not CWD)
+// In CommonJS, __dirname points to the compiled dist directory
+const envPath = path.join(__dirname, '..', '.env'); // dist/../.env
+
+config({ path: envPath });
 
 export interface GitBookConfig {
   gitbookUrl: string;

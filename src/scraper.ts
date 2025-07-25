@@ -33,6 +33,15 @@ export interface GitBookContent {
   [path: string]: GitBookPage;
 }
 
+export interface ScrapingProgress {
+  discovered: number;
+  completed: number;
+  failed: number;
+  currentUrl?: string;
+}
+
+export type ProgressCallback = (progress: ScrapingProgress) => void;
+
 export class GitBookScraper {
   private baseUrl: string;
   private content: GitBookContent = {};
@@ -45,10 +54,14 @@ export class GitBookScraper {
   private failedPages = new Map<string, number>(); // path -> retry count
   private retryQueue: string[] = [];
   private turndownService!: TurndownService;
+  private progressCallback?: ProgressCallback;
+  private totalDiscovered = 0;
+  private totalCompleted = 0;
 
-  constructor(baseUrl: string) {
+  constructor(baseUrl: string, progressCallback?: ProgressCallback) {
     this.baseUrl = baseUrl.replace(/\/$/, ''); // Remove trailing slash
     this.cacheFile = getCacheFilePath(baseUrl);
+    this.progressCallback = progressCallback;
     this.initializeTurndownService();
   }
 
@@ -88,6 +101,17 @@ export class GitBookScraper {
         'Upgrade-Insecure-Requests': '1'
       }
     });
+  }
+
+  private reportProgress(currentUrl?: string): void {
+    if (this.progressCallback) {
+      this.progressCallback({
+        discovered: this.discoveredUrls.size,
+        completed: Object.keys(this.content).length,
+        failed: this.failedPages.size,
+        currentUrl
+      });
+    }
   }
 
   private initializeTurndownService(): void {
@@ -275,6 +299,9 @@ export class GitBookScraper {
         lastChecked: new Date(),
         searchableText,
       };
+
+      // Report progress after storing page
+      this.reportProgress(url);
 
       // Only add delay for parallel processing, not discovery
       if (forceUpdate) {
@@ -669,6 +696,8 @@ export class GitBookScraper {
             if (!processed.has(link) && !queue.includes(link)) {
               queue.push(link);
               this.discoveredUrls.add(link);
+              // Report progress when discovering new URLs
+              this.reportProgress();
             }
           }
         }

@@ -20,6 +20,7 @@
     "start:http": "node dist/index.js --streamable-http",
     "start:api": "node dist/api.js",
     "create-mcp": "node scripts/create-mcp.js",
+    "inspect-cache": "node scripts/inspect-cache.js",
     "test": "npm run build && node test.js"
   },
   "dependencies": {

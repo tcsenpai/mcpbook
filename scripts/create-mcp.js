@@ -57,6 +57,19 @@ class MCPCreator {
     }
   }
 
+  async directoryExists(dirPath) {
+    try {
+      const stat = await fs.stat(dirPath);
+      return stat.isDirectory();
+    } catch {
+      return false;
+    }
+  }
+
+  async removeDirectory(dirPath) {
+    await fs.rm(dirPath, { recursive: true, force: true });
+  }
+
   async run() {
     try {
       console.log(`${bold}${cyan}🚀 GitBook MCP Server Creator${reset}\n`);
@@ -72,6 +85,18 @@ class MCPCreator {
       
     } catch (error) {
       console.error(`${red}❌ Error: ${error.message}${reset}`);
+      
+      // Clean up on failure if target directory was created
+      if (this.config.targetDir && await this.directoryExists(this.config.targetDir)) {
+        console.log(`${yellow}🧹 Cleaning up failed installation...${reset}`);
+        try {
+          await this.removeDirectory(this.config.targetDir);
+          console.log(`${blue}✅ Removed directory: ${this.config.targetDir}${reset}`);
+        } catch (cleanupError) {
+          console.log(`${yellow}⚠️  Could not clean up directory: ${cleanupError.message}${reset}`);
+        }
+      }
+      
       process.exit(1);
     } finally {
       this.rl.close();

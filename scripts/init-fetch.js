@@ -36,10 +36,40 @@ async function runInitialFetch() {
     
     console.log(`📖 Fetching content from: ${gitBookConfig.gitbookUrl}`);
     
-    // Create scraper and scrape content
-    const scraper = new GitBookScraper(gitBookConfig.gitbookUrl);
+    // Progress tracking
+    let lastProgressTime = Date.now();
+    let progressLine = '';
+    
+    // Create progress callback
+    const progressCallback = (progress) => {
+      const now = Date.now();
+      // Update progress line every 5 seconds or on significant changes
+      if (now - lastProgressTime > 5000 || progress.completed === 0) {
+        const percentage = progress.discovered > 0 ? Math.round((progress.completed / progress.discovered) * 100) : 0;
+        const newLine = `   📊 Progress: ${progress.completed}/${progress.discovered} pages (${percentage}%) | ❌ ${progress.failed} failed`;
+        
+        // Clear previous line and show new progress
+        if (progressLine) {
+          process.stdout.write('\r' + ' '.repeat(progressLine.length) + '\r');
+        }
+        process.stdout.write(newLine);
+        progressLine = newLine;
+        lastProgressTime = now;
+      }
+    };
+    
+    // Show initial status
+    console.log('🔍 Starting discovery phase...');
+    
+    // Create scraper with progress callback
+    const scraper = new GitBookScraper(gitBookConfig.gitbookUrl, progressCallback);
     await scraper.scrapeAll();
     const content = scraper.getContent();
+    
+    // Clear progress line and show completion
+    if (progressLine) {
+      process.stdout.write('\r' + ' '.repeat(progressLine.length) + '\r');
+    }
     
     // Check if we got content
     if (Object.keys(content).length === 0) {

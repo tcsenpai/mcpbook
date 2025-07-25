@@ -752,15 +752,37 @@ Keep it focused on getting someone up and running quickly. Use actual examples f
     // Run update check in background, don't block startup
     setTimeout(async () => {
       try {
-        console.error('Running background update check...');
+        console.error('🔄 Running background update check...');
+        
+        // Check if cache is fresh enough to skip update
+        const lastUpdated = this.store.getMetadata('last_updated');
+        if (lastUpdated) {
+          const hoursSinceUpdate = (Date.now() - parseInt(lastUpdated)) / (1000 * 60 * 60);
+          if (hoursSinceUpdate < gitBookConfig.cacheTtlHours) {
+            console.error(`✅ Cache is fresh (${hoursSinceUpdate.toFixed(1)}h old), skipping update`);
+            return;
+          }
+        }
+        
+        console.error('📖 Checking for content updates...');
         await this.scraper.scrapeAll();
         const content = this.scraper.getContent();
-        if (Object.keys(content).length > 0) {
+        const pageCount = Object.keys(content).length;
+        
+        if (pageCount > 0) {
           await this.store.updateContent(content);
-          console.error('Background update completed');
+          const failureStats = this.scraper.getFailureStats();
+          
+          if (failureStats.failedPages.length > 0) {
+            console.error(`✅ Background update completed: ${pageCount} pages updated, ${failureStats.failedPages.length} failures`);
+          } else {
+            console.error(`✅ Background update completed: ${pageCount} pages updated successfully`);
+          }
+        } else {
+          console.error('⚠️  Background update completed but no content was found');
         }
       } catch (error) {
-        console.error('Background update failed:', error);
+        console.error(`❌ Background update failed: ${error instanceof Error ? error.message : String(error)}`);
       }
     }, 1000); // 1 second delay to ensure server is fully started
   }

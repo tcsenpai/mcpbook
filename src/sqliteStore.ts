@@ -239,7 +239,7 @@ export class SQLiteStore {
     stmt.run(key, value, Date.now());
   }
 
-  private getMetadata(key: string): string | null {
+  getMetadata(key: string): string | null {
     const stmt = this.db.prepare(`
       SELECT value FROM metadata WHERE key = ?
     `);

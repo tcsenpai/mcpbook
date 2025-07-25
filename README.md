@@ -1,8 +1,8 @@
-# GitBook MCP Server
+# Universal Documentation MCP Server
 
 [![MCP Badge](https://lobehub.com/badge/mcp-full/tcsenpai-mcpbook)](https://lobehub.com/mcp/tcsenpai-mcpbook)
 
-A high-performance MCP (Model Context Protocol) server that transforms any public GitBook into an AI-accessible knowledge base. Features instant startup, intelligent caching, and automatic domain detection.
+A high-performance MCP (Model Context Protocol) server that transforms **any documentation website** into an AI-accessible knowledge base. Originally built for GitBook but works with **Vercel docs, Next.js sites, Docusaurus, and many other documentation platforms**. Features instant startup, intelligent caching, and automatic domain detection.
 
 ## ✨ Key Features
 
@@ -11,7 +11,7 @@ A high-performance MCP (Model Context Protocol) server that transforms any publi
 - **🧠 Smart Auto-Detection** - Automatically detects domain, keywords, and branding
 - **📝 Markdown Perfect** - Preserves formatting with syntax-highlighted code blocks
 - **🔄 Background Updates** - Non-blocking change detection and cache refresh
-- **🌐 Universal Support** - Works with any public GitBook site
+- **🌐 Universal Support** - Works with GitBook, Vercel docs, Next.js sites, and many other documentation platforms
 - **📡 Dual Interface** - Both MCP tools and REST API endpoints
 - **🚀 Production Ready** - Rate limiting, error handling, and robust caching
 
@@ -25,13 +25,13 @@ A high-performance MCP (Model Context Protocol) server that transforms any publi
 git clone https://github.com/tcsenpai/mcpbook/
 cd mcpbook
 
-# Create any GitBook MCP server instantly
+# Create MCP server for any documentation site instantly
 npm exec create-gitbook-mcp
 ```
 
 **That's it!** 🎉 The interactive wizard will:
 - ✨ **Guide you through setup** with smart defaults
-- 🔍 **Auto-detect domain/keywords** from your GitBook  
+- 🔍 **Auto-detect domain/keywords** from your documentation site
 - 📦 **Install in organized directories** (`~/.config/mcpbooks/servers/[name]`)
 - 🌍 **Optionally install globally** (accessible as `your-server-name` command)
 - 🤖 **Auto-configure Claude Desktop** (optional)
@@ -107,6 +107,29 @@ node dist/index.js --streamable-http --port=3002  # Custom port
 npm run start:api  # HTTP server on port 3000
 PORT=8080 npm run start:api  # Custom port
 ```
+
+## 🌐 Platform Compatibility
+
+While originally designed for GitBook, this MCP server has **proven compatibility** with many documentation platforms:
+
+### ✅ **Guaranteed to Work**
+- **GitBook** (original target platform)
+- **Custom GitBook instances** 
+
+### 🎯 **Successfully Tested**  
+- **Vercel-hosted docs** (`docs.vercel.com`, `aptos.dev`)
+- **Next.js documentation sites**
+- **Static site generators** with consistent navigation
+- **Most HTML-based documentation platforms**
+
+### 🔧 **How It Works**
+The scraper intelligently:
+- **Discovers navigation** through link crawling
+- **Extracts content** from any HTML structure  
+- **Adapts to different layouts** automatically
+- **Handles various authentication** and routing patterns
+
+> **💡 Pro Tip**: If a site has consistent navigation and accessible content, our scraper will likely work! The auto-detection feature adapts to different site structures automatically.
 
 ## ⚙️ Configuration
 
