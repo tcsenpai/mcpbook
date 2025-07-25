@@ -730,7 +730,10 @@ export class GitBookScraper {
       if (batch.length === 0) break;
 
       batchCount++;
-      console.error(`📖 Discovery batch ${batchCount}: checking ${batch.length} pages (${this.discoveredUrls.size} found, ${queue.length} queued)`);
+      // Only show progress every 10 batches to reduce spam
+      if (batchCount % 10 === 0 || batchCount === 1) {
+        console.error(`📖 Discovery batch ${batchCount}: checking ${batch.length} pages (${this.discoveredUrls.size} found, ${queue.length} queued)`);
+      }
 
       try {
         // Parallel discovery requests
@@ -742,8 +745,9 @@ export class GitBookScraper {
         batchResults.forEach((result, index) => {
           if (result.status === 'fulfilled') {
             newLinks.push(...result.value);
-          } else {
-            console.error(`Discovery failed for ${batch[index]}:`, result.reason);
+          } else if (gitBookConfig.debug) {
+            // Only show discovery failures in debug mode to avoid breaking progress line
+            console.error(`\nDiscovery failed for ${batch[index]}:`, result.reason);
           }
         });
 
@@ -764,7 +768,7 @@ export class GitBookScraper {
       }
     }
 
-    console.error(`✅ Discovery complete: found ${this.discoveredUrls.size} pages in ${batchCount} batches`);
+    console.error(`\n✅ Discovery complete: found ${this.discoveredUrls.size} pages in ${batchCount} batches`);
   }
 
   private async discoverFromPath(path: string): Promise<string[]> {
@@ -804,7 +808,12 @@ export class GitBookScraper {
     for (let i = 0; i < paths.length; i += batchSize) {
       const batch = paths.slice(i, i + batchSize);
       
-      console.error(`Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(paths.length / batchSize)} (${batch.length} pages) - ${processed}/${paths.length} completed`);
+      // Only show progress every 5 batches to reduce spam
+      const currentBatch = Math.floor(i / batchSize) + 1;
+      const totalBatches = Math.ceil(paths.length / batchSize);
+      if (currentBatch % 5 === 0 || currentBatch === 1 || currentBatch === totalBatches) {
+        console.error(`🔄 Processing batch ${currentBatch}/${totalBatches} (${batch.length} pages) - ${processed}/${paths.length} completed`);
+      }
       
       // Process batch in parallel
       const promises = batch.map(path => this.scrapePageSafe(path, forceUpdate));
@@ -824,7 +833,7 @@ export class GitBookScraper {
       }
     }
     
-    console.error(`Parallel processing complete: ${successful}/${processed} pages successful`);
+    console.error(`\n✅ Parallel processing complete: ${successful}/${processed} pages successful`);
   }
 
   private async scrapePageSafe(path: string, forceUpdate: boolean = false): Promise<void> {
@@ -883,7 +892,8 @@ export class GitBookScraper {
     for (let i = 0; i < this.retryQueue.length; i += retryBatchSize) {
       const batch = this.retryQueue.slice(i, i + retryBatchSize);
       
-      console.error(`Retry batch ${Math.floor(i / retryBatchSize) + 1}/${Math.ceil(this.retryQueue.length / retryBatchSize)}`);
+      const currentRetryBatch = Math.floor(i / retryBatchSize) + 1;
+      console.error(`🔄 Retry batch ${currentRetryBatch}/${Math.ceil(this.retryQueue.length / retryBatchSize)} (${batch.length} pages)`);
       
       const promises = batch.map(path => this.scrapePageSafe(path, true));
       await Promise.allSettled(promises);
@@ -895,6 +905,9 @@ export class GitBookScraper {
     }
     
     // Clear retry queue after processing
+    if (this.retryQueue.length > 0) {
+      console.error(`\n✅ Retry processing complete`);
+    }
     this.retryQueue = [];
   }
 
