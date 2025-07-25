@@ -59,10 +59,15 @@ export class GitBookScraper {
   private totalCompleted = 0;
 
   constructor(baseUrl: string, progressCallback?: ProgressCallback) {
+    console.log(`🏗️  CONSTRUCTOR: GitBookScraper constructor called with baseUrl: ${baseUrl}`);
     this.baseUrl = baseUrl.replace(/\/$/, ''); // Remove trailing slash
+    console.log(`🏗️  CONSTRUCTOR: baseUrl cleaned to: ${this.baseUrl}`);
     this.cacheFile = getCacheFilePath(baseUrl);
+    console.log(`🏗️  CONSTRUCTOR: cacheFile set to: ${this.cacheFile}`);
     this.progressCallback = progressCallback;
+    console.log(`🏗️  CONSTRUCTOR: About to initialize TurndownService...`);
     this.initializeTurndownService();
+    console.log(`🏗️  CONSTRUCTOR: GitBookScraper constructor completed`);
   }
 
   private joinUrls(base: string, path: string): string {
@@ -115,6 +120,7 @@ export class GitBookScraper {
   }
 
   private initializeTurndownService(): void {
+    console.log(`🏗️  TURNDOWN: Creating TurndownService...`);
     this.turndownService = new TurndownService({
       headingStyle: 'atx',
       hr: '---',
@@ -148,6 +154,8 @@ export class GitBookScraper {
       filter: 'br',
       replacement: () => '\n'
     });
+    
+    console.log(`🏗️  TURNDOWN: TurndownService initialization completed`);
   }
 
   private detectLanguageFromElement(element: any): string {
@@ -160,15 +168,19 @@ export class GitBookScraper {
   }
 
   async scrapeAll(): Promise<void> {
+    console.log(`🚀 SCRAPER: scrapeAll() started`);
+    
     // Try to load from cache first
+    console.log(`🚀 SCRAPER: Checking cache...`);
     if (await this.loadFromCache()) {
-      console.error(`Loaded ${Object.keys(this.content).length} pages from cache`);
+      console.log(`Loaded ${Object.keys(this.content).length} pages from cache`);
       
       // Check for changes if cache is not expired
+      console.log(`🚀 SCRAPER: Detecting changes...`);
       await this.detectChanges();
       
       if (this.changedPages.size > 0) {
-        console.error(`Detected ${this.changedPages.size} changed pages, updating...`);
+        console.log(`Detected ${this.changedPages.size} changed pages, updating...`);
         await this.updateChangedPagesParallel();
         await this.retryFailedPages();
         await this.saveToCache();
@@ -176,26 +188,28 @@ export class GitBookScraper {
       return;
     }
     
-    console.error('Starting GitBook scraping...');
+    console.log('🚀 SCRAPER: Starting GitBook scraping...');
+    console.log('🚀 SCRAPER: About to call scrapeAllPages()');
     await this.scrapeAllPages();
+    console.log('🚀 SCRAPER: scrapeAllPages() completed');
     
     // Retry failed pages
     await this.retryFailedPages();
     
     const pageCount = Object.keys(this.content).length;
-    console.error(`Scraping completed. Found ${pageCount} pages`);
+    console.log(`Scraping completed. Found ${pageCount} pages`);
     
     if (pageCount === 0) {
-      console.error('\n⚠️  \x1b[33mWARNING: No pages were scraped successfully!\x1b[0m');
-      console.error('   This usually means:');
-      console.error('   • The URL is not a valid GitBook site');
-      console.error('   • The site structure is different than expected');
-      console.error('   • Network issues or access restrictions');
-      console.error('   • Please verify the GITBOOK_URL in your .env file\n');
+      console.log('\n⚠️  \x1b[33mWARNING: No pages were scraped successfully!\x1b[0m');
+      console.log('   This usually means:');
+      console.log('   • The URL is not a valid GitBook site');
+      console.log('   • The site structure is different than expected');
+      console.log('   • Network issues or access restrictions');
+      console.log('   • Please verify the GITBOOK_URL in your .env file\n');
     }
     
     if (this.failedPages.size > 0) {
-      console.error(`Warning: ${this.failedPages.size} pages failed to scrape after retries`);
+      console.log(`Warning: ${this.failedPages.size} pages failed to scrape after retries`);
     }
     
     // Save to cache
@@ -234,7 +248,7 @@ export class GitBookScraper {
       };
       await fs.writeFile(this.cacheFile, JSON.stringify(cacheData, null, 2));
     } catch (error) {
-      console.error('Failed to save cache:', error);
+      console.log('Failed to save cache:', error);
     }
   }
 
@@ -249,13 +263,13 @@ export class GitBookScraper {
 
     try {
       if (gitBookConfig.debug) {
-        console.error(`Scraping: ${url}`);
+        console.log(`Scraping: ${url}`);
       }
       
       const response = await this.fetchWithHeaders(url);
       
       if (!response.ok) {
-        console.error(`Failed to fetch ${url}: ${response.status}`);
+        console.log(`Failed to fetch ${url}: ${response.status}`);
         return;
       }
 
@@ -263,7 +277,7 @@ export class GitBookScraper {
       const contentType = response.headers.get('content-type') || '';
       if (!contentType.includes('text/html')) {
         if (gitBookConfig.debug) {
-          console.error(`Skipping non-HTML content: ${url} (${contentType})`);
+          console.log(`Skipping non-HTML content: ${url} (${contentType})`);
         }
         return;
       }
@@ -317,7 +331,7 @@ export class GitBookScraper {
         await this.delay(gitBookConfig.scrapingDelayMs);
       }
     } catch (error) {
-      console.error(`Error scraping ${url}:`, error);
+      console.log(`Error scraping ${url}:`, error);
     }
   }
 
@@ -368,7 +382,7 @@ export class GitBookScraper {
         try {
           return this.turndownService.turndown(html);
         } catch (error) {
-          console.error('Error converting HTML to markdown:', error);
+          console.log('Error converting HTML to markdown:', error);
           return mainContent.text().trim();
         }
       }
@@ -383,7 +397,7 @@ export class GitBookScraper {
       try {
         return this.turndownService.turndown(bodyHtml);
       } catch (error) {
-        console.error('Error converting HTML to markdown:', error);
+        console.log('Error converting HTML to markdown:', error);
         return $clone('body').text().trim();
       }
     }
@@ -631,7 +645,7 @@ export class GitBookScraper {
     while (retryCount <= 2) { // Quick retry for change detection
       try {
         if (gitBookConfig.debug && retryCount === 0) {
-          console.error(`Checking for changes: ${url}`);
+          console.log(`Checking for changes: ${url}`);
         }
 
         const response = await this.fetchWithHeaders(url);
@@ -644,7 +658,7 @@ export class GitBookScraper {
             continue;
           }
           
-          console.error(`Failed to check ${url}: ${response.status}`);
+          console.log(`Failed to check ${url}: ${response.status}`);
           return;
         }
 
@@ -669,11 +683,11 @@ export class GitBookScraper {
         if (retryCount < 2) {
           retryCount++;
           if (gitBookConfig.debug) {
-            console.error(`Retrying change check for ${url} (attempt ${retryCount + 1})`);
+            console.log(`Retrying change check for ${url} (attempt ${retryCount + 1})`);
           }
           await this.delay(500 * retryCount);
         } else {
-          console.error(`Error checking ${url} after retries:`, error instanceof Error ? error.message : String(error));
+          console.log(`Error checking ${url} after retries:`, error instanceof Error ? error.message : String(error));
           return;
         }
       }
@@ -699,13 +713,25 @@ export class GitBookScraper {
     
     // Phase 2: Process all discovered URLs in parallel
     const allUrls = Array.from(this.discoveredUrls);
+    console.log(`🔍 Phase 2: Conversion to array complete. Got ${allUrls.length} URLs`);
+    
     if (allUrls.length > 0) {
-      console.error(`Discovered ${allUrls.length} pages, processing in parallel...`);
+      console.log(`📦 Discovered ${allUrls.length} pages, starting scraping phase...`);
+      console.log(`📦 About to call scrapePathsParallel with ${allUrls.length} URLs...`);
       await this.scrapePathsParallel(allUrls);
+      console.log(`📦 scrapePathsParallel completed`);
+    } else {
+      console.log(`⚠️  No pages discovered to scrape!`);
     }
   }
 
   private async discoverUrls(): Promise<void> {
+    // Try to load discovery cache in debug mode
+    if (gitBookConfig.debug && await this.loadDiscoveryCache()) {
+      console.log(`🔍 Loaded ${this.discoveredUrls.size} URLs from discovery cache`);
+      return;
+    }
+
     const queue = ['/'];
     const processed = new Set<string>();
     const discoveryBatchSize = Math.min(8, gitBookConfig.maxConcurrentRequests); // Parallel discovery
@@ -714,7 +740,7 @@ export class GitBookScraper {
     // Always include the root page in discovered URLs
     this.discoveredUrls.add('/');
 
-    console.error('🔍 Starting URL discovery...');
+    console.log('🔍 Starting URL discovery...');
 
     while (queue.length > 0) {
       // Process multiple paths in parallel
@@ -732,7 +758,7 @@ export class GitBookScraper {
       batchCount++;
       // Only show progress every 10 batches to reduce spam
       if (batchCount % 10 === 0 || batchCount === 1) {
-        console.error(`📖 Discovery batch ${batchCount}: checking ${batch.length} pages (${this.discoveredUrls.size} found, ${queue.length} queued)`);
+        console.log(`📖 Discovery batch ${batchCount}: checking ${batch.length} pages (${this.discoveredUrls.size} found, ${queue.length} queued)`);
       }
 
       try {
@@ -747,7 +773,7 @@ export class GitBookScraper {
             newLinks.push(...result.value);
           } else if (gitBookConfig.debug) {
             // Only show discovery failures in debug mode to avoid breaking progress line
-            console.error(`\nDiscovery failed for ${batch[index]}:`, result.reason);
+            console.log(`\nDiscovery failed for ${batch[index]}:`, result.reason);
           }
         });
 
@@ -764,11 +790,18 @@ export class GitBookScraper {
         
         // No delay for discovery - maximum speed
       } catch (error) {
-        console.error('Batch discovery error:', error);
+        console.log('Batch discovery error:', error);
       }
     }
 
-    console.error(`\n✅ Discovery complete: found ${this.discoveredUrls.size} pages in ${batchCount} batches`);
+    console.log(`\n✅ Discovery complete: found ${this.discoveredUrls.size} pages in ${batchCount} batches`);
+    
+    // Save discovery cache in debug mode
+    if (gitBookConfig.debug) {
+      await this.saveDiscoveryCache();
+    }
+    
+    console.log(`🔄 Discovery phase finished, returning control to scrapeAllPages...`);
   }
 
   private async discoverFromPath(path: string): Promise<string[]> {
@@ -781,7 +814,7 @@ export class GitBookScraper {
         const contentType = response.headers.get('content-type') || '';
         if (!contentType.includes('text/html')) {
           if (gitBookConfig.debug) {
-            console.error(`Skipping non-HTML content: ${url} (${contentType})`);
+            console.log(`Skipping non-HTML content: ${url} (${contentType})`);
           }
           return [];
         }
@@ -794,25 +827,29 @@ export class GitBookScraper {
       return [];
     } catch (error) {
       if (gitBookConfig.debug) {
-        console.error(`Discovery failed for ${path}:`, error);
+        console.log(`Discovery failed for ${path}:`, error);
       }
       return [];
     }
   }
 
   private async scrapePathsParallel(paths: string[], forceUpdate: boolean = false): Promise<void> {
+    console.log(`🚀 ENTERED scrapePathsParallel function with ${paths.length} paths`);
+    
     const batchSize = gitBookConfig.maxConcurrentRequests;
     let processed = 0;
     let successful = 0;
     
+    console.log(`🚀 Starting parallel scraping of ${paths.length} pages with batch size ${batchSize}...`);
+    
     for (let i = 0; i < paths.length; i += batchSize) {
       const batch = paths.slice(i, i + batchSize);
       
-      // Only show progress every 5 batches to reduce spam
+      // Show progress more frequently to ensure visibility
       const currentBatch = Math.floor(i / batchSize) + 1;
       const totalBatches = Math.ceil(paths.length / batchSize);
       if (currentBatch % 5 === 0 || currentBatch === 1 || currentBatch === totalBatches) {
-        console.error(`🔄 Processing batch ${currentBatch}/${totalBatches} (${batch.length} pages) - ${processed}/${paths.length} completed`);
+        console.log(`🔄 Processing batch ${currentBatch}/${totalBatches} (${batch.length} pages) - ${processed}/${paths.length} completed`);
       }
       
       // Process batch in parallel
@@ -833,7 +870,7 @@ export class GitBookScraper {
       }
     }
     
-    console.error(`\n✅ Parallel processing complete: ${successful}/${processed} pages successful`);
+    console.log(`\n✅ Parallel processing complete: ${successful}/${processed} pages successful`);
   }
 
   private async scrapePageSafe(path: string, forceUpdate: boolean = false): Promise<void> {
@@ -856,7 +893,7 @@ export class GitBookScraper {
         const delay = Math.min(1000 * Math.pow(2, retryCount), 10000); // Exponential backoff, max 10s
         
         if (gitBookConfig.debug) {
-          console.error(`Retrying ${path} in ${delay}ms (attempt ${retryCount + 1}/${gitBookConfig.maxRetries})`);
+          console.log(`Retrying ${path} in ${delay}ms (attempt ${retryCount + 1}/${gitBookConfig.maxRetries})`);
         }
         
         await this.delay(delay);
@@ -873,7 +910,7 @@ export class GitBookScraper {
     this.failedPages.set(path, currentRetries + 1);
     
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error(`Failed to scrape ${path} after ${gitBookConfig.maxRetries} retries: ${errorMessage}`);
+    console.log(`Failed to scrape ${path} after ${gitBookConfig.maxRetries} retries: ${errorMessage}`);
     
     // Add to retry queue for later processing
     if (!this.retryQueue.includes(path)) {
@@ -884,7 +921,7 @@ export class GitBookScraper {
   private async retryFailedPages(): Promise<void> {
     if (this.retryQueue.length === 0) return;
     
-    console.error(`Retrying ${this.retryQueue.length} failed pages...`);
+    console.log(`Retrying ${this.retryQueue.length} failed pages...`);
     
     // Process failed pages with reduced concurrency to be more conservative
     const retryBatchSize = Math.max(1, Math.floor(gitBookConfig.maxConcurrentRequests / 2));
@@ -893,7 +930,7 @@ export class GitBookScraper {
       const batch = this.retryQueue.slice(i, i + retryBatchSize);
       
       const currentRetryBatch = Math.floor(i / retryBatchSize) + 1;
-      console.error(`🔄 Retry batch ${currentRetryBatch}/${Math.ceil(this.retryQueue.length / retryBatchSize)} (${batch.length} pages)`);
+      console.log(`🔄 Retry batch ${currentRetryBatch}/${Math.ceil(this.retryQueue.length / retryBatchSize)} (${batch.length} pages)`);
       
       const promises = batch.map(path => this.scrapePageSafe(path, true));
       await Promise.allSettled(promises);
@@ -906,7 +943,7 @@ export class GitBookScraper {
     
     // Clear retry queue after processing
     if (this.retryQueue.length > 0) {
-      console.error(`\n✅ Retry processing complete`);
+      console.log(`\n✅ Retry processing complete`);
     }
     this.retryQueue = [];
   }
@@ -920,6 +957,45 @@ export class GitBookScraper {
 
   private calculateHash(content: string): string {
     return createHash('sha256').update(content).digest('hex');
+  }
+
+  private getDiscoveryCacheFile(): string {
+    return this.cacheFile.replace('.json', '-discovery.json');
+  }
+
+  private async loadDiscoveryCache(): Promise<boolean> {
+    try {
+      const discoveryCacheFile = this.getDiscoveryCacheFile();
+      const data = await fs.readFile(discoveryCacheFile, 'utf-8');
+      const cached = JSON.parse(data);
+      
+      // Check if discovery cache is still valid (1 hour TTL for discovery)
+      const cacheAge = Date.now() - new Date(cached.timestamp).getTime();
+      const discoveryTtlMs = 60 * 60 * 1000; // 1 hour
+      
+      if (cacheAge < discoveryTtlMs && cached.discoveredUrls && cached.discoveredUrls.length > 0) {
+        this.discoveredUrls = new Set(cached.discoveredUrls);
+        return true;
+      }
+    } catch (error) {
+      // Cache file doesn't exist or is invalid
+    }
+    return false;
+  }
+
+  private async saveDiscoveryCache(): Promise<void> {
+    try {
+      const discoveryCacheFile = this.getDiscoveryCacheFile();
+      const cacheData = {
+        timestamp: new Date().toISOString(),
+        discoveredUrls: Array.from(this.discoveredUrls),
+        baseUrl: this.baseUrl
+      };
+      await fs.writeFile(discoveryCacheFile, JSON.stringify(cacheData, null, 2));
+      console.log(`💾 Saved discovery cache with ${this.discoveredUrls.size} URLs`);
+    } catch (error) {
+      console.log('Failed to save discovery cache:', error);
+    }
   }
 
   getContent(): GitBookContent {

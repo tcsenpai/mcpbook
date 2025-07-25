@@ -62,8 +62,12 @@ async function runInitialFetch() {
     console.log('🔍 Starting discovery phase...');
     
     // Create scraper with progress callback
+    console.log('🏗️  INIT: About to create GitBookScraper with URL:', gitBookConfig.gitbookUrl);
     const scraper = new GitBookScraper(gitBookConfig.gitbookUrl, progressCallback);
+    console.log('🏗️  INIT: GitBookScraper created successfully');
+    console.log('🏗️  INIT: About to call scraper.scrapeAll()');
     await scraper.scrapeAll();
+    console.log('🏗️  INIT: scraper.scrapeAll() completed');
     const content = scraper.getContent();
     
     // Clear progress line and show completion

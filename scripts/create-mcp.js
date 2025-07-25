@@ -313,35 +313,21 @@ SCRAPING_DELAY_MS=100
   }
 
   async buildAndInitialize() {
+    console.log('🔧 DEBUG: Starting buildAndInitialize...');
     return new Promise((resolve, reject) => {
+      console.log('🔧 DEBUG: About to spawn npm run build:init');
       const npm = spawn('npm', ['run', 'build:init'], {
         cwd: this.config.targetDir,
-        stdio: 'pipe'
+        stdio: 'inherit' // Changed from 'pipe' to 'inherit' to show output
       });
 
-      let output = '';
-      npm.stdout.on('data', (data) => {
-        const text = data.toString();
-        output += text;
-        // Show progress indicators
-        if (text.includes('📖') || text.includes('🧠') || text.includes('💾')) {
-          process.stdout.write(`${blue}   ${text.trim()}${reset}\n`);
-        }
-      });
-
-      npm.stderr.on('data', (data) => {
-        const text = data.toString();
-        output += text;
-        if (text.includes('📖') || text.includes('🧠') || text.includes('💾')) {
-          process.stdout.write(`${blue}   ${text.trim()}${reset}\n`);
-        }
-      });
+      // When using stdio: 'inherit', stdout/stderr are null, so we can't attach listeners
 
       npm.on('close', (code) => {
         if (code === 0) {
           resolve();
         } else {
-          reject(new Error(`Build failed: ${output}`));
+          reject(new Error(`Build failed with code ${code}`));
         }
       });
     });
