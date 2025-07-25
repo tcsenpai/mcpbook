@@ -71,11 +71,24 @@ export class GitBookRestAPI {
           return res.status(400).json({ error: 'Query parameter "q" is required' });
         }
 
-        const results = await this.store.searchContent(query);
+        const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
+        const offset = parseInt(req.query.offset as string) || 0;
+        
+        const results = await (this.store as any).searchContent(query, limit, offset);
+        const totalResults = await (this.store as any).searchContentCount ? 
+          await (this.store as any).searchContentCount(query) : 
+          results.length;
+
         res.json({
           query,
-          results: results.length,
-          data: results
+          results,
+          pagination: {
+            total: totalResults,
+            limit,
+            offset,
+            hasMore: offset + limit < totalResults,
+            nextOffset: offset + limit < totalResults ? offset + limit : null
+          }
         });
       } catch (error) {
         res.status(500).json({ 

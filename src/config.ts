@@ -73,10 +73,10 @@ export const gitBookConfig: GitBookConfig = {
   gitbookUrl: getEnvVar('GITBOOK_URL', ''),
   cacheTtlHours: getEnvNumber('CACHE_TTL_HOURS', 1),
   cacheFile: getEnvVar('CACHE_FILE', ''), // Will be generated based on GitBook URL
-  scrapingDelayMs: getEnvNumber('SCRAPING_DELAY_MS', 100),
+  scrapingDelayMs: getEnvNumber('SCRAPING_DELAY_MS', 25),
   maxRetries: getEnvNumber('MAX_RETRIES', 3),
   requestTimeoutMs: getEnvNumber('REQUEST_TIMEOUT_MS', 30000),
-  maxConcurrentRequests: getEnvNumber('MAX_CONCURRENT_REQUESTS', 5),
+  maxConcurrentRequests: getEnvNumber('MAX_CONCURRENT_REQUESTS', 15),
   serverName: getEnvVar('SERVER_NAME', ''),
   serverDescription: getEnvVar('SERVER_DESCRIPTION', ''),
   domainKeywords: getEnvArray('DOMAIN_KEYWORDS', []),

@@ -177,9 +177,9 @@ export class SQLiteStore {
     return rows.map(row => row.section);
   }
 
-  async search(query: string, limit: number = 20): Promise<SearchResult[]> {
-    // Check cache first
-    const cacheKey = `${query}:${limit}`;
+  async search(query: string, limit: number = 20, offset: number = 0): Promise<SearchResult[]> {
+    // Check cache first (only cache first page results)
+    const cacheKey = `${query}:${limit}:${offset}`;
     if (this.searchCache.has(cacheKey)) {
       const cached = this.searchCache.get(cacheKey)!;
       return cached;
@@ -194,10 +194,10 @@ export class SQLiteStore {
       JOIN pages ON pages.rowid = pages_fts.rowid
       WHERE pages_fts MATCH ?
       ORDER BY pages_fts.rank
-      LIMIT ?
+      LIMIT ? OFFSET ?
     `);
 
-    const rows = stmt.all(searchQuery, limit) as any[];
+    const rows = stmt.all(searchQuery, limit, offset) as any[];
     
     const results: SearchResult[] = rows.map(row => {
       const page = this.rowToPage(row);
@@ -291,9 +291,22 @@ export class SQLiteStore {
   }
 
   // Legacy methods for compatibility with ContentStore interface
-  async searchContent(query: string): Promise<any[]> {
-    const results = await this.search(query);
+  async searchContent(query: string, limit?: number, offset?: number): Promise<any[]> {
+    const results = await this.search(query, limit, offset);
     return results.map(r => r.page);
+  }
+  
+  async searchContentCount(query: string): Promise<number> {
+    const searchQuery = query.split(' ').map(term => `"${term.replace(/"/g, '""')}"`).join(' OR ');
+    
+    const stmt = this.db.prepare(`
+      SELECT COUNT(*) as count
+      FROM pages_fts 
+      WHERE pages_fts MATCH ?
+    `);
+    
+    const result = stmt.get(searchQuery) as { count: number };
+    return result.count;
   }
 
   async listSections(): Promise<string[]> {

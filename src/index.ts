@@ -70,6 +70,17 @@ class GitBookMCPServer {
                   type: 'string',
                   description: 'Search query',
                 },
+                limit: {
+                  type: 'number',
+                  description: 'Maximum number of results to return (default: 20, max: 100)',
+                  minimum: 1,
+                  maximum: 100,
+                },
+                offset: {
+                  type: 'number',
+                  description: 'Number of results to skip for pagination (default: 0)',
+                  minimum: 0,
+                },
               },
               required: ['query'],
             },
@@ -105,6 +116,17 @@ class GitBookMCPServer {
                 section: {
                   type: 'string',
                   description: 'Section name (e.g., "SDK", "Backend")',
+                },
+                limit: {
+                  type: 'number',
+                  description: 'Maximum number of pages to return (default: 50, max: 200)',
+                  minimum: 1,
+                  maximum: 200,
+                },
+                offset: {
+                  type: 'number',
+                  description: 'Number of pages to skip for pagination (default: 0)',
+                  minimum: 0,
                 },
               },
               required: ['section'],
@@ -260,13 +282,13 @@ class GitBookMCPServer {
         
         switch (baseName) {
           case 'search_content':
-            return await this.handleSearchContent(args as { query: string });
+            return await this.handleSearchContent(args as { query: string; limit?: number; offset?: number });
           case 'get_page':
             return await this.handleGetPage(args as { path: string });
           case 'list_sections':
             return await this.handleListSections();
           case 'get_section_pages':
-            return await this.handleGetSectionPages(args as { section: string });
+            return await this.handleGetSectionPages(args as { section: string; limit?: number; offset?: number });
           case 'refresh_content':
             return await this.handleRefreshContent();
           case 'get_status':
@@ -287,13 +309,32 @@ class GitBookMCPServer {
     });
   }
 
-  private async handleSearchContent(args: { query: string }) {
-    const results = await this.store.searchContent(args.query);
+  private async handleSearchContent(args: { query: string; limit?: number; offset?: number }) {
+    const limit = Math.min(args.limit || 20, 100); // Cap at 100
+    const offset = args.offset || 0;
+    
+    // Use efficient database-level pagination
+    const results = await (this.store as any).searchContent(args.query, limit, offset);
+    const totalResults = await (this.store as any).searchContentCount ? 
+      await (this.store as any).searchContentCount(args.query) : 
+      results.length; // Fallback for stores without count method
+    
+    const response = {
+      results,
+      pagination: {
+        total: totalResults,
+        limit,
+        offset,
+        hasMore: offset + limit < totalResults,
+        nextOffset: offset + limit < totalResults ? offset + limit : null
+      }
+    };
+    
     return {
       content: [
         {
           type: 'text',
-          text: JSON.stringify(results, null, 2),
+          text: JSON.stringify(response, null, 2),
         },
       ],
     };
@@ -326,13 +367,33 @@ class GitBookMCPServer {
     };
   }
 
-  private async handleGetSectionPages(args: { section: string }) {
-    const pages = await this.store.getSectionPages(args.section);
+  private async handleGetSectionPages(args: { section: string; limit?: number; offset?: number }) {
+    const limit = Math.min(args.limit || 50, 200); // Cap at 200
+    const offset = args.offset || 0;
+    
+    const allPages = await this.store.getSectionPages(args.section);
+    const totalPages = allPages.length;
+    
+    // Apply pagination
+    const paginatedPages = allPages.slice(offset, offset + limit);
+    
+    const response = {
+      section: args.section,
+      pages: paginatedPages,
+      pagination: {
+        total: totalPages,
+        limit,
+        offset,
+        hasMore: offset + limit < totalPages,
+        nextOffset: offset + limit < totalPages ? offset + limit : null
+      }
+    };
+    
     return {
       content: [
         {
           type: 'text',
-          text: JSON.stringify(pages, null, 2),
+          text: JSON.stringify(response, null, 2),
         },
       ],
     };
