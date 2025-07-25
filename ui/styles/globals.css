@@ -1,0 +1,37 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Test if CSS is loading */
+body {
+  background-color: #f9fafb !important;
+}
+
+/* Terminal styling */
+.terminal {
+  @apply font-mono text-sm leading-relaxed;
+  background: #1a1b26;
+  color: #a9b1d6;
+}
+
+.terminal-output {
+  @apply whitespace-pre-wrap break-words;
+}
+
+/* Custom scrollbar for terminal */
+.terminal::-webkit-scrollbar {
+  width: 8px;
+}
+
+.terminal::-webkit-scrollbar-track {
+  background: #16161e;
+}
+
+.terminal::-webkit-scrollbar-thumb {
+  background: #414868;
+  border-radius: 4px;
+}
+
+.terminal::-webkit-scrollbar-thumb:hover {
+  background: #565f89;
+}

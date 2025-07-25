@@ -79,6 +79,13 @@ jspm_packages/
 .next
 out
 
+# UI specific files
+ui/.next/
+ui/out/
+ui/.env.local
+ui/.env.development.local
+ui/.env.production.local
+
 # Nuxt.js build / generate output
 .nuxt
 dist

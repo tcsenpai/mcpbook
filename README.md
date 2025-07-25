@@ -19,6 +19,26 @@ A high-performance MCP (Model Context Protocol) server that transforms **any doc
 
 > **💡 Recommended: Use the interactive creator for the best experience!**
 
+### 🎨 **Web UI Management Dashboard**
+```bash
+# Clone this repo (once)
+git clone https://github.com/tcsenpai/mcpbook/
+cd mcpbook
+
+# Build the UI
+npm run ui:build
+
+# Start the web interface
+npm run ui
+```
+
+The Web UI provides:
+- **🚀 Visual Server Creation** - Step-by-step wizard with live URL validation
+- **📊 Server Management** - Start/stop/delete servers with real-time status
+- **📋 Claude Desktop Integration** - One-click copy config or add via CLI
+- **🖥️ Live Terminal** - Real-time feedback and command execution
+- **⚠️ Safety Features** - Confirmation dialogs and cancel functionality
+
 ### ⭐ **One-Command Setup**
 ```bash
 # Clone this repo (once)
