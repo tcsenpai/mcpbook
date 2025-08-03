@@ -15,6 +15,7 @@ import { ContentStore } from './store.js';
 import { SQLiteStore } from './sqliteStore.js';
 import { gitBookConfig, validateConfig, logConfig, getCacheFilePath } from './config.js';
 import { DomainDetector, DomainInfo } from './domainDetector.js';
+import { ResponseUtils } from './responseUtils.js';
 
 class GitBookMCPServer {
   private server: Server;
@@ -64,17 +65,21 @@ class GitBookMCPServer {
             name: `${this.domainInfo.toolPrefix}search_content`,
             description: `Search across all ${this.domainInfo.description} for ${this.domainInfo.keywords.slice(0, 5).join(', ')}`,
             inputSchema: {
-              type: 'object',
+              type: 'object',  
               properties: {
                 query: {
                   type: 'string',
                   description: 'Search query',
                 },
+                continuation_token: {
+                  type: 'string',
+                  description: 'Continuation token for paginated results',
+                },
                 limit: {
                   type: 'number',
-                  description: 'Maximum number of results to return (default: 20, max: 100)',
+                  description: 'Maximum number of results to return (default: 20, max: 50)',
                   minimum: 1,
-                  maximum: 100,
+                  maximum: 50,
                 },
                 offset: {
                   type: 'number',
@@ -82,7 +87,39 @@ class GitBookMCPServer {
                   minimum: 0,
                 },
               },
-              required: ['query'],
+              required: [],
+            },
+          },
+          {
+            name: `${this.domainInfo.toolPrefix}get_page_section`,
+            description: `Get a specific section from a page in ${this.domainInfo.description}`,
+            inputSchema: {
+              type: 'object',
+              properties: {
+                path: {
+                  type: 'string',
+                  description: 'Page path (e.g., "/sdk/websdk")',
+                },
+                section: {
+                  type: 'string',
+                  description: 'Section identifier or heading text',
+                },
+              },
+              required: ['path'],
+            },
+          },
+          {
+            name: `${this.domainInfo.toolPrefix}get_page_outline`,
+            description: `Get the structure and outline of a specific page in ${this.domainInfo.description}`,
+            inputSchema: {
+              type: 'object',
+              properties: {
+                path: {
+                  type: 'string',
+                  description: 'Page path (e.g., "/sdk/websdk")',
+                },
+              },
+              required: ['path'],
             },
           },
           {
@@ -97,6 +134,58 @@ class GitBookMCPServer {
                 },
               },
               required: ['path'],
+            },
+          },
+          {
+            name: `${this.domainInfo.toolPrefix}search_code`,
+            description: `Search for code blocks and programming examples in ${this.domainInfo.description}`,
+            inputSchema: {
+              type: 'object',
+              properties: {
+                query: {
+                  type: 'string',
+                  description: 'Search query for code (language, function, keyword, etc.)',
+                },
+                language: {
+                  type: 'string',
+                  description: 'Filter by programming language (e.g., "javascript", "python")',
+                },
+                path: {
+                  type: 'string',
+                  description: 'Optional: search within specific page path',
+                },
+                limit: {
+                  type: 'number',
+                  description: 'Maximum number of code blocks to return (default: 10, max: 30)',
+                  minimum: 1,
+                  maximum: 30,
+                },
+              },
+              required: ['query'],
+            },
+          },
+          {
+            name: `${this.domainInfo.toolPrefix}get_related_pages`,
+            description: `Find pages related to a specific page or topic in ${this.domainInfo.description}`,
+            inputSchema: {
+              type: 'object',
+              properties: {
+                path: {
+                  type: 'string',
+                  description: 'Page path to find related pages for',
+                },
+                topic: {
+                  type: 'string',
+                  description: 'Topic or keyword to find related pages for',
+                },
+                limit: {
+                  type: 'number',
+                  description: 'Maximum number of related pages to return (default: 5, max: 15)',
+                  minimum: 1,
+                  maximum: 15,
+                },
+              },
+              required: [],
             },
           },
           {
@@ -282,9 +371,17 @@ class GitBookMCPServer {
         
         switch (baseName) {
           case 'search_content':
-            return await this.handleSearchContent(args as { query: string; limit?: number; offset?: number });
+            return await this.handleSearchContent(args as { query?: string; continuation_token?: string; limit?: number; offset?: number });
+          case 'get_page_section':
+            return await this.handleGetPageSection(args as { path: string; section?: string });
+          case 'get_page_outline':
+            return await this.handleGetPageOutline(args as { path: string });
           case 'get_page':
             return await this.handleGetPage(args as { path: string });
+          case 'search_code':
+            return await this.handleSearchCode(args as { query: string; language?: string; path?: string; limit?: number });
+          case 'get_related_pages':
+            return await this.handleGetRelatedPages(args as { path?: string; topic?: string; limit?: number });
           case 'list_sections':
             return await this.handleListSections();
           case 'get_section_pages':
@@ -309,35 +406,120 @@ class GitBookMCPServer {
     });
   }
 
-  private async handleSearchContent(args: { query: string; limit?: number; offset?: number }) {
-    const limit = Math.min(args.limit || 20, 100); // Cap at 100
-    const offset = args.offset || 0;
+  private async handleSearchContent(args: { query?: string; continuation_token?: string; limit?: number; offset?: number }) {
+    let query: string;
+    let limit = Math.min(args.limit || 20, 50); // Reduced default for token safety
+    let offset = args.offset || 0;
+
+    // Handle continuation token
+    if (args.continuation_token) {
+      try {
+        const tokenData = ResponseUtils.parseContinuationToken(args.continuation_token);
+        query = tokenData.q;
+        offset = tokenData.o;
+        // Keep the original limit if not overridden
+        if (!args.limit) limit = 20;
+      } catch (error) {
+        throw new McpError(ErrorCode.InvalidRequest, `Invalid continuation token: ${error}`);
+      }
+    } else if (args.query) {
+      query = args.query;
+    } else {
+      throw new McpError(ErrorCode.InvalidRequest, 'Either query or continuation_token is required');
+    }
     
     // Use efficient database-level pagination
-    const results = await (this.store as any).searchContent(args.query, limit, offset);
+    const results = await (this.store as any).searchContent(query, limit, offset);
     const totalResults = await (this.store as any).searchContentCount ? 
-      await (this.store as any).searchContentCount(args.query) : 
+      await (this.store as any).searchContentCount(query) : 
       results.length; // Fallback for stores without count method
     
-    const response = {
-      results,
-      pagination: {
-        total: totalResults,
-        limit,
-        offset,
-        hasMore: offset + limit < totalResults,
-        nextOffset: offset + limit < totalResults ? offset + limit : null
-      }
-    };
+    const tokenSafeResponse = ResponseUtils.createSearchResponse(
+      results, 
+      query, 
+      limit, 
+      offset, 
+      totalResults, 
+      this.domainInfo.toolPrefix
+    );
     
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(response, null, 2),
-        },
-      ],
-    };
+    return ResponseUtils.formatMcpResponse(tokenSafeResponse);
+  }
+
+  private async handleGetPageSection(args: { path: string; section?: string }) {
+    const page = await this.store.getPage(args.path);
+    if (!page) {
+      throw new McpError(ErrorCode.InvalidRequest, `Page not found: ${args.path}`);
+    }
+
+    let extractedContent: string | undefined;
+    
+    if (args.section) {
+      // Extract specific section from markdown
+      extractedContent = this.extractSection(page.markdown || page.content, args.section);
+      if (!extractedContent) {
+        throw new McpError(ErrorCode.InvalidRequest, `Section not found in page: ${args.section}`);
+      }
+    }
+
+    const tokenSafeResponse = ResponseUtils.createPageSectionResponse(page, args.section, extractedContent);
+    return ResponseUtils.formatMcpResponse(tokenSafeResponse);
+  }
+
+  private extractSection(content: string, sectionId: string): string | undefined {
+    if (!content) return undefined;
+    
+    // Try to match by heading text or ID
+    const lines = content.split('\n');
+    let startIndex = -1;
+    let endIndex = lines.length;
+    let currentLevel = 0;
+    
+    // Find section start
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
+      
+      if (headingMatch) {
+        const level = headingMatch[1].length;
+        const text = headingMatch[2].trim();
+        const id = text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        
+        // Check if this matches our section
+        if (text.toLowerCase().includes(sectionId.toLowerCase()) || 
+            id === sectionId.toLowerCase() ||
+            sectionId.toLowerCase().includes(text.toLowerCase())) {
+          startIndex = i;
+          currentLevel = level;
+          break;
+        }
+      }
+    }
+    
+    if (startIndex === -1) return undefined;
+    
+    // Find section end (next heading of same or higher level)
+    for (let i = startIndex + 1; i < lines.length; i++) {
+      const line = lines[i];
+      const headingMatch = line.match(/^(#{1,6})\s+/);
+      
+      if (headingMatch && headingMatch[1].length <= currentLevel) {
+        endIndex = i;
+        break;
+      }
+    }
+    
+    return lines.slice(startIndex, endIndex).join('\n');
+  }
+
+  private async handleGetPageOutline(args: { path: string }) {
+    const page = await this.store.getPage(args.path);
+    if (!page) {
+      throw new McpError(ErrorCode.InvalidRequest, `Page not found: ${args.path}`);
+    }
+
+    const tokenSafeResponse = ResponseUtils.createPageOutlineResponse(page);
+    return ResponseUtils.formatMcpResponse(tokenSafeResponse);
   }
 
   private async handleGetPage(args: { path: string }) {
@@ -345,14 +527,261 @@ class GitBookMCPServer {
     if (!page) {
       throw new McpError(ErrorCode.InvalidRequest, `Page not found: ${args.path}`);
     }
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(page, null, 2),
-        },
-      ],
+
+    // Use token-safe response formatting
+    const tokenSafeResponse = ResponseUtils.createPageSectionResponse(page);
+    return ResponseUtils.formatMcpResponse(tokenSafeResponse);
+  }
+
+  private async handleSearchCode(args: { query: string; language?: string; path?: string; limit?: number }) {
+    const limit = Math.min(args.limit || 10, 30);
+    let codeResults: any[] = [];
+
+    if (args.path) {
+      // Search within specific page
+      const page = await this.store.getPage(args.path);
+      if (!page) {
+        throw new McpError(ErrorCode.InvalidRequest, `Page not found: ${args.path}`);
+      }
+      codeResults = this.searchCodeInPage(page, args.query, args.language);
+    } else {
+      // Search across all pages
+      codeResults = await this.searchCodeGlobally(args.query, limit, args.language);
+    }
+    
+    const limitedResults = codeResults.slice(0, limit);
+    
+    const response = {
+      query: args.query,
+      language: args.language,
+      path: args.path,
+      results: limitedResults,
+      summary: {
+        total: codeResults.length,
+        showing: limitedResults.length,
+        languages: [...new Set(limitedResults.map(r => r.language))],
+        pages: [...new Set(limitedResults.map(r => r.page.path))]
+      }
     };
+
+    const jsonString = JSON.stringify(response, null, 2);
+    const estimatedTokens = ResponseUtils.estimateTokens(jsonString);
+
+    return ResponseUtils.formatMcpResponse({
+      content: response,
+      tokenInfo: {
+        estimated: estimatedTokens,
+        safe: estimatedTokens < 20000,
+        truncated: false
+      }
+    });
+  }
+
+  private searchCodeInPage(page: any, query: string, language?: string): any[] {
+    if (!page.codeBlocks || page.codeBlocks.length === 0) return [];
+    
+    const results: any[] = [];
+    const queryLower = query.toLowerCase();
+    
+    page.codeBlocks.forEach((block: any, index: number) => {
+      // Filter by language if specified
+      if (language && block.language.toLowerCase() !== language.toLowerCase()) {
+        return;
+      }
+      
+      // Search in code content
+      const codeLines = block.code.split('\n');
+      const matchingLines: { lineNumber: number; line: string }[] = [];
+      
+      codeLines.forEach((line: string, lineIndex: number) => {
+        if (line.toLowerCase().includes(queryLower)) {
+          matchingLines.push({
+            lineNumber: lineIndex + 1,
+            line: line.trim()
+          });
+        }
+      });
+      
+      // Also check title and language
+      const titleMatch = block.title && block.title.toLowerCase().includes(queryLower);
+      const languageMatch = block.language.toLowerCase().includes(queryLower);
+      
+      if (matchingLines.length > 0 || titleMatch || languageMatch) {
+        results.push({
+          page: {
+            title: page.title,
+            path: page.path,
+            section: page.section
+          },
+          codeBlock: {
+            index: index + 1,
+            language: block.language,
+            title: block.title,
+            lineCount: codeLines.length,
+            matches: matchingLines.slice(0, 5), // Limit matches shown
+            matchType: titleMatch ? 'title' : languageMatch ? 'language' : 'content',
+            preview: codeLines.slice(0, 3).join('\n') + (codeLines.length > 3 ? '\n...' : '')
+          }
+        });
+      }
+    });
+    
+    return results;
+  }
+
+  private async searchCodeGlobally(query: string, limit: number, language?: string): Promise<any[]> {
+    // This would need to be implemented based on your store's capabilities
+    // For now, we'll do a simplified search by getting all pages and searching their code blocks
+    const allResults: any[] = [];
+    
+    try {
+      // Get a sample of pages to search (to avoid overwhelming the system)
+      const samplePages = await (this.store as any).getSamplePages ? 
+        await (this.store as any).getSamplePages(50) : 
+        [];
+      
+      for (const page of samplePages) {
+        const pageResults = this.searchCodeInPage(page, query, language);
+        allResults.push(...pageResults);
+        
+        // Early exit if we have enough results
+        if (allResults.length >= limit * 2) break;
+      }
+    } catch (error) {
+      console.error('Error in global code search:', error);
+    }
+    
+    // Sort by relevance (matches in title first, then content matches)
+    return allResults.sort((a, b) => {
+      if (a.codeBlock.matchType === 'title' && b.codeBlock.matchType !== 'title') return -1;
+      if (b.codeBlock.matchType === 'title' && a.codeBlock.matchType !== 'title') return 1;
+      return b.codeBlock.matches.length - a.codeBlock.matches.length;
+    });
+  }
+
+  private async handleGetRelatedPages(args: { path?: string; topic?: string; limit?: number }) {
+    const limit = Math.min(args.limit || 5, 15);
+    let relatedPages: any[] = [];
+
+    if (args.path) {
+      // Find pages related to a specific page
+      const page = await this.store.getPage(args.path);
+      if (!page) {
+        throw new McpError(ErrorCode.InvalidRequest, `Page not found: ${args.path}`);
+      }
+      relatedPages = await this.findRelatedToPage(page, limit);
+    } else if (args.topic) {
+      // Find pages related to a topic
+      relatedPages = await this.findRelatedToTopic(args.topic, limit);
+    } else {
+      throw new McpError(ErrorCode.InvalidRequest, 'Either path or topic is required');
+    }
+
+    const response = {
+      relatedTo: args.path ? { type: 'page', path: args.path } : { type: 'topic', topic: args.topic },
+      results: relatedPages,
+      summary: {
+        total: relatedPages.length,
+        sections: [...new Set(relatedPages.map(p => p.section))],
+        avgRelevanceScore: relatedPages.length > 0 ? 
+          relatedPages.reduce((sum, p) => sum + (p.relevanceScore || 0), 0) / relatedPages.length : 0
+      }
+    };
+
+    const jsonString = JSON.stringify(response, null, 2);
+    const estimatedTokens = ResponseUtils.estimateTokens(jsonString);
+
+    return ResponseUtils.formatMcpResponse({
+      content: response,
+      tokenInfo: {
+        estimated: estimatedTokens,
+        safe: estimatedTokens < 20000,
+        truncated: false
+      }
+    });
+  }
+
+  private async findRelatedToPage(page: any, limit: number): Promise<any[]> {
+    const relatedPages: any[] = [];
+    
+    try {
+      // Strategy 1: Pages in the same section
+      if (page.section) {
+        const sectionPages = await this.store.getSectionPages(page.section);
+        sectionPages.forEach(p => {
+          if (p.path !== page.path) {
+            relatedPages.push({
+              ...p,
+              relevanceScore: 0.8,
+              relationshipType: 'same_section'
+            });
+          }
+        });
+      }
+
+      // Strategy 2: Pages with similar titles or content
+      const keywords = this.extractKeywords(page.title + ' ' + (page.content || '').substring(0, 500));
+      if (keywords.length > 0) {
+        const searchResults = await (this.store as any).searchContent ? 
+          await (this.store as any).searchContent(keywords.slice(0, 3).join(' '), limit * 2) : [];
+        
+        searchResults.forEach((result: any) => {
+          if (result.page.path !== page.path && !relatedPages.find(p => p.path === result.page.path)) {
+            relatedPages.push({
+              ...result.page,
+              relevanceScore: 0.6,
+              relationshipType: 'content_similarity',
+              snippet: result.snippet
+            });
+          }
+        });
+      }
+
+      // Strategy 3: Pages with similar code languages (if applicable)
+      if (page.codeBlocks && page.codeBlocks.length > 0) {
+        const languages = [...new Set(page.codeBlocks.map((cb: any) => cb.language))];
+        // This would require a more sophisticated search - simplified for now
+      }
+
+    } catch (error) {
+      console.error('Error finding related pages:', error);
+    }
+
+    // Sort by relevance score and limit results
+    return relatedPages
+      .sort((a, b) => (b.relevanceScore || 0) - (a.relevanceScore || 0))
+      .slice(0, limit);
+  }
+
+  private async findRelatedToTopic(topic: string, limit: number): Promise<any[]> {
+    try {
+      const searchResults = await (this.store as any).searchContent ? 
+        await (this.store as any).searchContent(topic, limit * 2) : [];
+      
+      return searchResults.slice(0, limit).map((result: any) => ({
+        ...result.page,
+        relevanceScore: 0.7,
+        relationshipType: 'topic_match',
+        snippet: result.snippet
+      }));
+    } catch (error) {
+      console.error('Error finding pages for topic:', error);
+      return [];
+    }
+  }
+
+  private extractKeywords(text: string): string[] {
+    if (!text) return [];
+    
+    // Simple keyword extraction - remove common words and get important terms
+    const commonWords = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from', 'up', 'about', 'into', 'through', 'during', 'before', 'after', 'above', 'below', 'between', 'among', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'can', 'this', 'that', 'these', 'those']);
+    
+    return text
+      .toLowerCase()
+      .replace(/[^\w\s]/g, ' ')
+      .split(/\s+/)
+      .filter(word => word.length > 3 && !commonWords.has(word))
+      .slice(0, 10); // Limit to top 10 keywords
   }
 
   private async handleListSections() {
