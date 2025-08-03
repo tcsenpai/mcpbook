@@ -341,17 +341,34 @@ export class GitBookScraper {
     
     // Remove navigation, header, footer, and other non-content elements
     $clone('nav, header, footer, .navigation, .sidebar, .toc, .breadcrumb').remove();
+    // Remove script and style content that might leak into text
+    $clone('script, style, noscript').remove();
     
     // Extract main content area
     const mainContent = $clone('main, .content, .page-content, article, .markdown-body').first();
     
     if (mainContent.length) {
-      return mainContent.text().trim();
+      let text = mainContent.text().trim();
+      // Filter out JavaScript-like content that leaked through
+      text = this.cleanJavaScriptNoise(text);
+      return text;
     }
     
     // Fallback: extract from body, removing common non-content elements
-    $clone('script, style, nav, header, footer').remove();
-    return $clone('body').text().trim();
+    $clone('script, style, nav, header, footer, noscript').remove();
+    let text = $clone('body').text().trim();
+    return this.cleanJavaScriptNoise(text);
+  }
+
+  private cleanJavaScriptNoise(text: string): string {
+    // Remove JavaScript-like patterns that leak into content
+    // This targets the specific pattern we saw: "class s extends HTMLElement{..."
+    text = text.replace(/^class\s+\w+\s+extends\s+HTMLElement\{[^}]*\}.*?(?=\n\n|\n[A-Z]|$)/gs, '');
+    // Remove other JS patterns
+    text = text.replace(/^function\s+\w+\([^)]*\)\s*\{.*?\}.*?(?=\n\n|\n[A-Z]|$)/gs, '');
+    // Remove customElements.define calls
+    text = text.replace(/customElements\.get\([^)]+\)\|\|customElements\.define\([^)]+\);?\s*/g, '');
+    return text.trim();
   }
 
   private extractRawContent($: cheerio.CheerioAPI): string {

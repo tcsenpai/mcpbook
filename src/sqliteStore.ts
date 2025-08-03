@@ -265,7 +265,7 @@ export class SQLiteStore {
     };
   }
 
-  private generateSnippet(content: string, query: string, maxLength: number = 200): string {
+  private generateSnippet(content: string, query: string, maxLength: number = 300): string {
     const words = query.toLowerCase().split(/\s+/);
     const lowerContent = content.toLowerCase();
     
@@ -293,7 +293,22 @@ export class SQLiteStore {
   // Legacy methods for compatibility with ContentStore interface
   async searchContent(query: string, limit?: number, offset?: number): Promise<any[]> {
     const results = await this.search(query, limit, offset);
-    return results.map(r => r.page);
+    return results.map(r => ({
+      page: {
+        path: r.page.path,
+        title: r.page.title,
+        content: r.page.markdown || r.page.content, // Prefer markdown (cleaner), fallback to content
+        section: r.page.section,
+        subsection: r.page.subsection,
+        url: r.page.url,
+        lastUpdated: r.page.lastUpdated,
+        lastChecked: r.page.lastChecked,
+        codeBlocks: r.page.codeBlocks
+        // Removed: duplicate content fields, rawHtml (massive), contentHash (internal), searchableText (internal)
+      },
+      snippet: r.snippet,
+      score: r.score
+    }));
   }
   
   async searchContentCount(query: string): Promise<number> {
