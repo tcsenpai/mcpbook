@@ -408,7 +408,7 @@ class GitBookMCPServer {
 
   private async handleSearchContent(args: { query?: string; continuation_token?: string; limit?: number; offset?: number }) {
     let query: string;
-    let limit = Math.min(args.limit || 20, 50); // Reduced default for token safety
+    let requestedLimit = Math.min(args.limit || 20, 50);
     let offset = args.offset || 0;
 
     // Handle continuation token
@@ -418,7 +418,7 @@ class GitBookMCPServer {
         query = tokenData.q;
         offset = tokenData.o;
         // Keep the original limit if not overridden
-        if (!args.limit) limit = 20;
+        if (!args.limit) requestedLimit = 20;
       } catch (error) {
         throw new McpError(ErrorCode.InvalidRequest, `Invalid continuation token: ${error}`);
       }
@@ -428,19 +428,26 @@ class GitBookMCPServer {
       throw new McpError(ErrorCode.InvalidRequest, 'Either query or continuation_token is required');
     }
     
-    // Use efficient database-level pagination
-    const results = await (this.store as any).searchContent(query, limit, offset);
+    // Get total count first
     const totalResults = await (this.store as any).searchContentCount ? 
-      await (this.store as any).searchContentCount(query) : 
-      results.length; // Fallback for stores without count method
+      await (this.store as any).searchContentCount(query) : null;
     
-    const tokenSafeResponse = ResponseUtils.createSearchResponse(
+    // For dynamic pagination, we need to get more results than requested to calculate proper limits
+    const batchSize = Math.min(requestedLimit * 3, 150); // Get up to 3x requested or max 150
+    const results = await (this.store as any).searchContent(query, batchSize, offset);
+    
+    // Use actual result count if we don't have a count method
+    const actualTotal = totalResults !== null ? totalResults : (offset + results.length + (results.length === batchSize ? 1 : 0));
+    
+    // Create dynamic paginated response that respects 22K token limit
+    const tokenSafeResponse = ResponseUtils.createDynamicPaginatedResponse(
       results, 
       query, 
-      limit, 
+      requestedLimit,
       offset, 
-      totalResults, 
-      this.domainInfo.toolPrefix
+      actualTotal, 
+      this.domainInfo.toolPrefix,
+      'search_content'
     );
     
     return ResponseUtils.formatMcpResponse(tokenSafeResponse);

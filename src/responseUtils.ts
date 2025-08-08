@@ -1,7 +1,8 @@
 // Token estimation and response utilities for MCP
-const CHARS_PER_TOKEN = 4; // Rough estimate
-const MAX_SAFE_TOKENS = 20000; // Buffer under 25k limit
-const MAX_SAFE_CHARS = MAX_SAFE_TOKENS * CHARS_PER_TOKEN;
+const CHARS_PER_TOKEN = 3.8; // More accurate estimate for JSON content
+const MAX_TOKENS_HARD_LIMIT = 22000; // Your specified limit
+const MAX_TOKENS_SAFE_BUFFER = 21000; // Buffer for response metadata
+const PAGINATION_METADATA_TOKENS = 200; // Tokens reserved for pagination info
 
 export interface PaginationInfo {
   total: number;
@@ -24,6 +25,106 @@ export interface TokenSafeResponse {
 export class ResponseUtils {
   static estimateTokens(text: string): number {
     return Math.ceil(text.length / CHARS_PER_TOKEN);
+  }
+
+  /**
+   * Dynamically determines how many results can fit within token limits
+   */
+  static calculateDynamicLimit(results: any[], baseTokens: number = PAGINATION_METADATA_TOKENS): number {
+    if (results.length === 0) return 0;
+    
+    const availableTokens = MAX_TOKENS_SAFE_BUFFER - baseTokens;
+    let currentTokens = 0;
+    let count = 0;
+    
+    for (const result of results) {
+      const resultJson = JSON.stringify(result, null, 2);
+      const resultTokens = this.estimateTokens(resultJson);
+      
+      if (currentTokens + resultTokens > availableTokens) {
+        break;
+      }
+      
+      currentTokens += resultTokens;
+      count++;
+    }
+    
+    return Math.max(count, 1); // Always return at least 1 result
+  }
+
+  /**
+   * Creates a token-aware paginated response that never exceeds limits
+   */
+  static createDynamicPaginatedResponse(
+    allResults: any[],
+    query: string,
+    requestedLimit: number,
+    offset: number,
+    total: number,
+    toolPrefix: string = '',
+    responseType: string = 'search'
+  ): TokenSafeResponse {
+    // Get results starting from offset
+    const remainingResults = allResults.slice(offset);
+    
+    // Calculate how many we can actually fit
+    const dynamicLimit = this.calculateDynamicLimit(remainingResults);
+    const actualResults = remainingResults.slice(0, dynamicLimit);
+    
+    const hasMore = offset + actualResults.length < total;
+    const nextOffset = hasMore ? offset + actualResults.length : null;
+    
+    // Create intelligent continuation message
+    let continuationMessage = '';
+    if (hasMore) {
+      const remaining = total - (offset + actualResults.length);
+      const nextBatch = Math.min(remaining, requestedLimit);
+      
+      continuationMessage = `📄 Showing ${actualResults.length} of ${remaining + actualResults.length} remaining results. ` +
+        `To continue, use: ${toolPrefix}${responseType === 'search' ? 'search_content' : responseType} ` +
+        `with continuation_token="${this.createContinuationToken(query, nextOffset!)}" ` +
+        `(~${nextBatch} more results available)`;
+    }
+    
+    const pagination: PaginationInfo = {
+      total,
+      limit: dynamicLimit, // Show actual limit used
+      offset,
+      hasMore,
+      continuationToken: hasMore ? this.createContinuationToken(query, nextOffset!) : undefined,
+      nextInstruction: hasMore ? continuationMessage : undefined
+    };
+
+    const response = {
+      query,
+      results: actualResults,
+      pagination,
+      tokenManagement: {
+        requestedLimit,
+        actualLimit: dynamicLimit,
+        reason: dynamicLimit < requestedLimit ? 'Reduced to stay within 22K token limit' : 'Within token limits',
+        totalEstimatedTokens: this.estimateTokens(JSON.stringify(actualResults, null, 2)) + PAGINATION_METADATA_TOKENS
+      },
+      summary: {
+        showing: `${offset + 1}-${offset + actualResults.length}`,
+        of: total,
+        pages: Math.ceil(total / dynamicLimit),
+        currentPage: Math.floor(offset / dynamicLimit) + 1,
+        resultsInThisBatch: actualResults.length
+      }
+    };
+
+    const jsonString = JSON.stringify(response, null, 2);
+    const estimatedTokens = this.estimateTokens(jsonString);
+
+    return {
+      content: response,
+      tokenInfo: {
+        estimated: estimatedTokens,
+        safe: estimatedTokens < MAX_TOKENS_HARD_LIMIT,
+        truncated: dynamicLimit < requestedLimit
+      }
+    };
   }
 
   static createContinuationToken(query: string, offset: number, additionalParams?: any): string {
@@ -84,7 +185,7 @@ export class ResponseUtils {
       content: response,
       tokenInfo: {
         estimated: estimatedTokens,
-        safe: estimatedTokens < MAX_SAFE_TOKENS,
+        safe: estimatedTokens < MAX_TOKENS_HARD_LIMIT,
         truncated: false
       }
     };
@@ -116,7 +217,7 @@ export class ResponseUtils {
       const fullPageJson = JSON.stringify(page, null, 2);
       const tokens = this.estimateTokens(fullPageJson);
       
-      if (tokens < MAX_SAFE_TOKENS) {
+      if (tokens < MAX_TOKENS_SAFE_BUFFER) {
         content = page;
       } else {
         // Page too large, return summary with sections
@@ -143,8 +244,8 @@ export class ResponseUtils {
       content,
       tokenInfo: {
         estimated: estimatedTokens,
-        safe: estimatedTokens < MAX_SAFE_TOKENS,
-        truncated: sectionId ? false : estimatedTokens >= MAX_SAFE_TOKENS
+        safe: estimatedTokens < MAX_TOKENS_HARD_LIMIT,
+        truncated: sectionId ? false : estimatedTokens >= MAX_TOKENS_HARD_LIMIT
       }
     };
   }
