@@ -1,3 +1,5 @@
+[![MSeeP.ai Security Assessment Badge](https://mseep.net/pr/tcsenpai-mcpbook-badge.png)](https://mseep.ai/app/tcsenpai-mcpbook)
+
 # Universal Documentation MCP Server
 
 [![MCP Badge](https://lobehub.com/badge/mcp-full/tcsenpai-mcpbook)](https://lobehub.com/mcp/tcsenpai-mcpbook)
